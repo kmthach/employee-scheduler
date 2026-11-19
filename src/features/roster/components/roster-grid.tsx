@@ -1,6 +1,5 @@
 import { AlertTriangle, Pencil, Plus, Trash2 } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -13,8 +12,10 @@ import {
 import { getWeekDays } from "@/domain/date"
 import { getAssignedHours, getHoursStatus } from "@/domain/hours"
 import { sortShifts } from "@/domain/shift"
-import type { Assignment, Shift, Staff } from "@/domain/types"
+import type { Assignment, DayOfWeek, Shift, Staff } from "@/domain/types"
 import { cn } from "@/lib/utils"
+
+import { AssignmentCell } from "./assignment-cell"
 
 interface Props {
   scheduleId: string
@@ -22,6 +23,7 @@ interface Props {
   shifts: Shift[]
   assignments: Assignment[]
   onAddStaff: () => void
+  onOpenShifts: () => void
   onEditStaff: (staff: Staff) => void
   onDeleteStaff: (staff: Staff) => void
 }
@@ -38,17 +40,22 @@ export function RosterGrid({
   shifts,
   assignments,
   onAddStaff,
+  onOpenShifts,
   onEditStaff,
   onDeleteStaff,
 }: Props) {
   const days = getWeekDays(scheduleId)
-  const shiftById = new Map(sortShifts(shifts).map((s, i) => [s.id, { shift: s, index: i }]))
+  const sortedShifts = sortShifts(shifts)
+  const shiftColor = (shiftId: string) => {
+    const index = sortedShifts.findIndex((s) => s.id === shiftId)
+    return SHIFT_COLORS[Math.max(index, 0) % SHIFT_COLORS.length]
+  }
 
   return (
     <div className="overflow-x-auto rounded-lg border">
       <Table className="min-w-[960px] table-fixed">
         <TableHeader>
-          <TableRow className="bg-muted/50">
+          <TableRow className="bg-muted/50 hover:bg-muted/50">
             <TableHead className="w-44">Employee</TableHead>
             {days.map((d) => (
               <TableHead key={d.getTime()} className="border-l">
@@ -62,8 +69,8 @@ export function RosterGrid({
         </TableHeader>
         <TableBody>
           {staff.map((person) => (
-            <TableRow key={person.id} className="align-top">
-              <TableCell className="font-medium whitespace-normal">
+            <TableRow key={person.id} className="align-top hover:bg-transparent has-aria-expanded:bg-transparent">
+              <TableCell className="font-medium whitespace-normal transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="truncate">{person.name}</div>
@@ -93,29 +100,21 @@ export function RosterGrid({
                 </div>
               </TableCell>
               {days.map((_, dayIndex) => (
-                <TableCell key={dayIndex} className="border-l">
-                  <div className="flex flex-col gap-1">
-                    {assignments
-                      .filter((a) => a.staffId === person.id && a.dayOfWeek === dayIndex)
-                      .map((a) => {
-                        const entry = shiftById.get(a.shiftId)
-                        if (!entry) return null
-                        return (
-                          <Badge
-                            key={a.id}
-                            variant="secondary"
-                            className={cn("rounded-md", SHIFT_COLORS[entry.index % SHIFT_COLORS.length])}
-                          >
-                            {entry.shift.startTime}–{entry.shift.endTime}
-                          </Badge>
-                        )
-                      })}
-                  </div>
+                <TableCell key={dayIndex} className="border-l transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50">
+                  <AssignmentCell
+                    person={person}
+                    dayOfWeek={dayIndex as DayOfWeek}
+                    shifts={sortedShifts}
+                    staff={staff}
+                    assignments={assignments}
+                    shiftColor={shiftColor}
+                    onOpenShifts={onOpenShifts}
+                  />
                 </TableCell>
               ))}
             </TableRow>
           ))}
-          <TableRow>
+          <TableRow className="hover:bg-transparent has-aria-expanded:bg-transparent">
             <TableCell colSpan={days.length + 1} className="p-1">
               <Button variant="ghost" className="w-full justify-start" onClick={onAddStaff}>
                 <Plus /> Add employee

@@ -150,7 +150,7 @@ Tasks:
 
 - [ ] Display assignments in the weekly roster.
 - [ ] Assign an employee to a shift on a particular day.
-- [ ] Reassign an employee.
+- [ ] Reassign an employee (via "Change shift" on an assignment, or remove and assign another employee; no move-to-employee action).
 - [ ] Remove assignments.
 - [ ] Display shift times clearly.
 - [ ] Calculate weekly hours per employee.

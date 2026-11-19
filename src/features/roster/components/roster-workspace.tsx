@@ -10,6 +10,7 @@ import { ShiftTemplatesDialog } from "@/features/shifts/components/shift-templat
 import { StaffFormDialog } from "@/features/staff/components/staff-form-dialog"
 import { useScheduleStore } from "@/store/schedule-store"
 
+import { OverMaxAlert } from "./over-max-alert"
 import { RosterGrid } from "./roster-grid"
 
 function EmptyState({
@@ -82,11 +83,18 @@ export function RosterWorkspace() {
           <Clock /> Shifts ({shifts.length})
         </Button>
       </div>
+      <OverMaxAlert staff={staff} shifts={shifts} assignments={assignments} />
+      {staff.length > 0 && assignments.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          No shifts assigned yet — use the + in a day cell to assign a shift.
+        </p>
+      )}
       <RosterGrid
         scheduleId={scheduleId}
         staff={staff}
         shifts={shifts}
         assignments={assignments}
+        onOpenShifts={() => setShiftsOpen(true)}
         onAddStaff={() => {
           setEditing(null)
           setFormOpen(true)

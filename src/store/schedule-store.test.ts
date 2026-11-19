@@ -79,3 +79,46 @@ describe("shift actions", () => {
     expect(useScheduleStore.getState().addShift({ startTime: "11:00", endTime: "19:00" }).ok).toBe(false)
   })
 })
+
+describe("assignment actions", () => {
+  it("assignShift adds an assignment to the current schedule", () => {
+    const r = useScheduleStore.getState().assignShift({ staffId: "s1", shiftId: "am", dayOfWeek: 1 })
+    expect(r.ok).toBe(true)
+    const added = useScheduleStore.getState().assignments.filter((a) => a.dayOfWeek === 1)
+    expect(added).toHaveLength(1)
+    expect(added[0].scheduleId).toBe("A")
+  })
+
+  it("assignShift blocks overlap and leaves state unchanged", () => {
+    const before = useScheduleStore.getState().assignments
+    const r = useScheduleStore.getState().assignShift({ staffId: "s1", shiftId: "am", dayOfWeek: 0 })
+    expect(r).toMatchObject({ ok: false, reason: "overlap" })
+    expect(useScheduleStore.getState().assignments).toBe(before)
+  })
+
+  it("assignShift rejects staff from another schedule", () => {
+    const r = useScheduleStore.getState().assignShift({ staffId: "s2", shiftId: "am", dayOfWeek: 3 })
+    expect(r.ok).toBe(false)
+  })
+
+  it("assignShift is allowed beyond max weekly hours", () => {
+    useScheduleStore.setState({ staff: [{ ...staff("s1", "A"), maxWeeklyHours: 1 }, staff("s2", "B")] })
+    const r = useScheduleStore.getState().assignShift({ staffId: "s1", shiftId: "am", dayOfWeek: 2 })
+    expect(r.ok).toBe(true)
+  })
+
+  it("changeAssignmentShift ignores itself but blocks real overlaps", () => {
+    const store = useScheduleStore.getState()
+    // Assignment 1 (s1, am, Mon) -> pm would overlap assignment 2 (s1, pm, Mon): identical shift.
+    expect(store.changeAssignmentShift("1", "pm")).toMatchObject({ ok: false, reason: "overlap" })
+    // Replacing am with itself is fine (ignore-self).
+    expect(store.changeAssignmentShift("1", "am").ok).toBe(true)
+  })
+
+  it("changeAssignmentShift and removeAssignment leave other schedules alone", () => {
+    useScheduleStore.getState().removeAssignment("1")
+    const s = useScheduleStore.getState()
+    expect(s.assignments.map((a) => a.id)).toEqual(["2", "3"])
+    expect(s.schedules.find((x) => x.id === "B")?.updatedAt).toBe("t")
+  })
+})

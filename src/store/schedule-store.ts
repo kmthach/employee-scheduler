@@ -1,6 +1,13 @@
 import { create } from "zustand"
 
 import { getScheduleId, moveWeek } from "@/domain/date"
+import {
+  addAssignment,
+  checkAssignment,
+  removeAssignment,
+  updateAssignment,
+} from "@/domain/assignment"
+import type { AssignmentCandidate, AssignmentCheck } from "@/domain/assignment"
 import { createSchedule } from "@/domain/schedule"
 import {
   addShift,
@@ -37,6 +44,10 @@ interface ScheduleState {
   addShift: (input: ShiftInput) => ShiftActionResult
   updateShift: (id: string, input: ShiftInput) => ShiftActionResult
   deleteShift: (id: string) => void
+  /** Assignment actions re-check ERD rules and leave state untouched when `ok` is false. */
+  assignShift: (candidate: AssignmentCandidate) => AssignmentCheck
+  changeAssignmentShift: (id: string, shiftId: string) => AssignmentCheck
+  removeAssignment: (id: string) => void
 }
 
 const todayId = getScheduleId(new Date())
@@ -134,5 +145,55 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
       if (!target) return s
       const result = removeShift(s.shifts, s.assignments, id)
       return { ...result, schedules: touch(s.schedules, target.scheduleId) }
+    }),
+
+  assignShift: (candidate) => {
+    const s = get()
+    const current = s.currentScheduleId
+    if (!s.schedules.some((x) => x.id === current)) return { ok: false, reason: "missing-staff" }
+    const scoped = {
+      staff: s.staff.filter((x) => x.scheduleId === current),
+      shifts: s.shifts.filter((x) => x.scheduleId === current),
+      assignments: s.assignments.filter((x) => x.scheduleId === current),
+    }
+    const check = checkAssignment(scoped, candidate)
+    if (!check.ok) return check
+    set({
+      assignments: addAssignment(s.assignments, current, candidate, crypto.randomUUID()),
+      schedules: touch(s.schedules, current),
+    })
+    return check
+  },
+
+  changeAssignmentShift: (id, shiftId) => {
+    const s = get()
+    const target = s.assignments.find((a) => a.id === id)
+    if (!target) return { ok: false, reason: "missing-shift" }
+    const scoped = {
+      staff: s.staff.filter((x) => x.scheduleId === target.scheduleId),
+      shifts: s.shifts.filter((x) => x.scheduleId === target.scheduleId),
+      assignments: s.assignments.filter((x) => x.scheduleId === target.scheduleId),
+    }
+    const check = checkAssignment(
+      scoped,
+      { staffId: target.staffId, shiftId, dayOfWeek: target.dayOfWeek },
+      id
+    )
+    if (!check.ok) return check
+    set({
+      assignments: updateAssignment(s.assignments, id, { shiftId }),
+      schedules: touch(s.schedules, target.scheduleId),
+    })
+    return check
+  },
+
+  removeAssignment: (id) =>
+    set((s) => {
+      const target = s.assignments.find((a) => a.id === id)
+      if (!target) return s
+      return {
+        assignments: removeAssignment(s.assignments, id),
+        schedules: touch(s.schedules, target.scheduleId),
+      }
     }),
 }))
