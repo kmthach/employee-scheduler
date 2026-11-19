@@ -74,15 +74,15 @@ Use local date operations to avoid timezone-related date shifts.
 - [ ] The application starts successfully.
 - [ ] The current week is selected automatically on startup.
 - [ ] The week header displays the correct Monday–Sunday date range.
-- [ ] Previous Week and Next Week navigate in seven-day increments.
+- [x] Previous Week and Next Week navigate in seven-day increments.
 - [ ] The current week button returns to the current week.
-- [ ] Schedule IDs consistently use the Monday date in `YYYY-MM-DD` format.
+- [x] Schedule IDs consistently use the Monday date in `YYYY-MM-DD` format.
 - [ ] Navigating to another week does not automatically create a schedule.
-- [ ] The roster displays exactly 2 mock employees.
-- [ ] The roster demonstrates both default shifts.
+- [ ] ~~The roster displays exactly 2 mock employees.~~ (superseded in Phase 2: mock data removed)
+- [ ] ~~The roster demonstrates both default shifts.~~ (superseded in Phase 2: mock data removed)
 - [ ] The weekly roster layout is clear and understandable.
 - [ ] The layout works at desktop screen sizes.
-- [ ] Type checking and production build pass.
+- [x] Type checking and production build pass.
 
 ### Out of Scope
 
@@ -105,7 +105,8 @@ Tasks:
 
 - [ ] Define Schedule, Staff, Shift, Assignment, and Transaction domain models.
 - [ ] Define day-of-week and time representations.
-- [ ] Create a default schedule with sample data.
+- [ ] Create schedules via a "+ New schedule" button on weeks without one, seeded with the default shifts (no sample data).
+- [ ] Remove mock data.
 - [ ] Implement employee creation.
 - [ ] Implement employee editing.
 - [ ] Implement employee deletion.
@@ -117,6 +118,7 @@ Tasks:
 - Users can manage employees through the UI.
 - Employee information is reflected in the roster.
 - Domain models are independent of React components.
+- A week without a schedule shows a placeholder with a "+ New schedule" button.
 
 ## Phase 3 — Shift Management
 

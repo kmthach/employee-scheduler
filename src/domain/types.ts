@@ -22,3 +22,27 @@ export interface Assignment {
   shiftId: string
   dayOfWeek: DayOfWeek
 }
+
+export interface Schedule {
+  id: string // Monday date, YYYY-MM-DD
+  createdAt: string // ISO timestamp
+  updatedAt: string // ISO timestamp
+}
+
+export interface TransactionRecord {
+  id: string
+  scheduleId: string
+  dayOfWeek: DayOfWeek
+  hour: number // 0–23
+  transactionCount: number
+}
+
+export const DAYS_OF_WEEK = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+] as const
