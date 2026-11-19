@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table"
 import { getWeekDays } from "@/domain/date"
 import { getAssignedHours, getHoursStatus } from "@/domain/hours"
+import { sortShifts } from "@/domain/shift"
 import type { Assignment, Shift, Staff } from "@/domain/types"
 import { cn } from "@/lib/utils"
 
@@ -41,7 +42,7 @@ export function RosterGrid({
   onDeleteStaff,
 }: Props) {
   const days = getWeekDays(scheduleId)
-  const shiftById = new Map(shifts.map((s, i) => [s.id, { shift: s, index: i }]))
+  const shiftById = new Map(sortShifts(shifts).map((s, i) => [s.id, { shift: s, index: i }]))
 
   return (
     <div className="overflow-x-auto rounded-lg border">

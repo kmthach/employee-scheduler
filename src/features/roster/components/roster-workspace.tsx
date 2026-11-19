@@ -1,4 +1,4 @@
-import { CalendarPlus, Plus } from "lucide-react"
+import { CalendarPlus, Clock, Plus } from "lucide-react"
 import { useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -6,6 +6,7 @@ import { formatWeekRange } from "@/domain/date"
 import { filterBySchedule } from "@/domain/schedule-data"
 import type { Staff } from "@/domain/types"
 import { DeleteStaffDialog } from "@/features/staff/components/delete-staff-dialog"
+import { ShiftTemplatesDialog } from "@/features/shifts/components/shift-templates-dialog"
 import { StaffFormDialog } from "@/features/staff/components/staff-form-dialog"
 import { useScheduleStore } from "@/store/schedule-store"
 
@@ -48,6 +49,7 @@ export function RosterWorkspace() {
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Staff | null>(null)
   const [deleting, setDeleting] = useState<Staff | null>(null)
+  const [shiftsOpen, setShiftsOpen] = useState(false)
 
   const staff = useMemo(() => filterBySchedule(allStaff, scheduleId), [allStaff, scheduleId])
   const shifts = useMemo(() => filterBySchedule(allShifts, scheduleId), [allShifts, scheduleId])
@@ -75,6 +77,11 @@ export function RosterWorkspace() {
 
   return (
     <main className="flex flex-col gap-4 p-6">
+      <div className="flex justify-end">
+        <Button variant="outline" onClick={() => setShiftsOpen(true)}>
+          <Clock /> Shifts ({shifts.length})
+        </Button>
+      </div>
       <RosterGrid
         scheduleId={scheduleId}
         staff={staff}
@@ -91,6 +98,13 @@ export function RosterWorkspace() {
         onDeleteStaff={setDeleting}
       />
 
+      <ShiftTemplatesDialog
+        open={shiftsOpen}
+        onOpenChange={setShiftsOpen}
+        shifts={shifts}
+        staff={staff}
+        assignments={assignments}
+      />
       <StaffFormDialog
         open={formOpen}
         onOpenChange={setFormOpen}

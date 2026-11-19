@@ -20,3 +20,16 @@ export function shiftDurationHours(shift: Pick<Shift, "startTime" | "endTime">):
   if (start === null || end === null || end <= start) return 0
   return (end - start) / 60
 }
+
+/** True if the two time ranges share any time. Touching boundaries (end == start) don't overlap. */
+export function timesOverlap(
+  a: Pick<Shift, "startTime" | "endTime">,
+  b: Pick<Shift, "startTime" | "endTime">
+): boolean {
+  const aStart = parseTime(a.startTime)
+  const aEnd = parseTime(a.endTime)
+  const bStart = parseTime(b.startTime)
+  const bEnd = parseTime(b.endTime)
+  if (aStart === null || aEnd === null || bStart === null || bEnd === null) return false
+  return aStart < bEnd && bStart < aEnd
+}

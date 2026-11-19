@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { formatTime, parseTime, shiftDurationHours } from "./time"
+import { formatTime, parseTime, shiftDurationHours, timesOverlap } from "./time"
 
 describe("parseTime", () => {
   it("parses valid times", () => {
@@ -31,5 +31,21 @@ describe("shiftDurationHours", () => {
     expect(shiftDurationHours({ startTime: "15:00", endTime: "07:00" })).toBe(0)
     expect(shiftDurationHours({ startTime: "10:00", endTime: "10:00" })).toBe(0)
     expect(shiftDurationHours({ startTime: "xx", endTime: "10:00" })).toBe(0)
+  })
+})
+
+describe("timesOverlap", () => {
+  const r = (startTime: string, endTime: string) => ({ startTime, endTime })
+  it("is false for touching ranges", () => {
+    expect(timesOverlap(r("07:00", "15:00"), r("15:00", "23:00"))).toBe(false)
+  })
+  it("is true for partial overlap and containment", () => {
+    expect(timesOverlap(r("07:00", "15:00"), r("12:00", "20:00"))).toBe(true)
+    expect(timesOverlap(r("07:00", "23:00"), r("12:00", "13:00"))).toBe(true)
+    expect(timesOverlap(r("07:00", "15:00"), r("07:00", "15:00"))).toBe(true)
+  })
+  it("is false for disjoint ranges and invalid times", () => {
+    expect(timesOverlap(r("07:00", "09:00"), r("10:00", "12:00"))).toBe(false)
+    expect(timesOverlap(r("xx", "09:00"), r("07:00", "12:00"))).toBe(false)
   })
 })

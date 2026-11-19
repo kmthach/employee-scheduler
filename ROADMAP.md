@@ -126,13 +126,14 @@ Tasks:
 
 Tasks:
 
-- [ ] Seed default shifts (07:00–15:00 and 15:00–23:00).
+- [ ] Seed default shifts (07:00–15:00 and 15:00–23:00) — seeded when a schedule is created (Phase 2).
 - [ ] Display available shift templates.
 - [ ] Add shift templates.
 - [ ] Edit shift templates.
 - [ ] Remove shift templates.
 - [ ] Validate start and end times.
 - [ ] Handle changes to templates that already have assignments.
+- [ ] Block template edits that would overlap an employee's assignments; deleting a template removes its assignments after confirmation.
 
 **Completion criteria:**
 
