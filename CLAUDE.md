@@ -29,7 +29,7 @@ See ROADMAP.md for implementation phases.
 - Shift templates have a start and end time.
 - Multiple employees can work the same shift.
 - Different shift templates may overlap.
-- An employee cannot have overlapping assignments.
+- An employee cannot have overlapping assignments. New overlapping assignments are blocked; a shift template edit may create overlaps in a draft (highlighted), but a schedule with overlaps cannot be published.
 - Maximum weekly hours are a warning, not a hard restriction.
 - Auto-scheduling generates an editable draft.
 - Fairness should account for each employee's maximum weekly hours.

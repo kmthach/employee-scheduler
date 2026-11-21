@@ -114,7 +114,6 @@ export function RosterWorkspace() {
         open={shiftsOpen}
         onOpenChange={setShiftsOpen}
         shifts={shifts}
-        staff={staff}
         assignments={assignments}
       />
       <StaffFormDialog

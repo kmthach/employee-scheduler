@@ -11,11 +11,10 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { describeConflict, getShiftUsage, sortShifts } from "@/domain/shift"
+import { getShiftUsage, sortShifts } from "@/domain/shift"
 import type { ShiftValidation } from "@/domain/shift"
 import { shiftDurationHours } from "@/domain/time"
-import { DAYS_OF_WEEK } from "@/domain/types"
-import type { Assignment, Shift, Staff } from "@/domain/types"
+import type { Assignment, Shift } from "@/domain/types"
 import { useScheduleStore } from "@/store/schedule-store"
 
 import { DeleteShiftDialog } from "./delete-shift-dialog"
@@ -24,11 +23,15 @@ interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   shifts: Shift[]
-  staff: Staff[]
   assignments: Assignment[]
 }
 
-export function ShiftTemplatesDialog({ open, onOpenChange, shifts, staff, assignments }: Props) {
+export function ShiftTemplatesDialog({
+  open,
+  onOpenChange,
+  shifts,
+  assignments,
+}: Props) {
   const deleteShift = useScheduleStore((s) => s.deleteShift)
   // "new" = adding, a shift id = editing that shift, null = just listing.
   const [editing, setEditing] = useState<string | null>(null)
@@ -49,8 +52,8 @@ export function ShiftTemplatesDialog({ open, onOpenChange, shifts, staff, assign
           <DialogHeader>
             <DialogTitle>Shift templates</DialogTitle>
             <DialogDescription>
-              Reusable shifts for this schedule. Several employees can share a shift, and different
-              shifts may overlap.
+              Reusable shifts for this schedule. Several employees can share a
+              shift, and different shifts may overlap.
             </DialogDescription>
           </DialogHeader>
 
@@ -63,11 +66,7 @@ export function ShiftTemplatesDialog({ open, onOpenChange, shifts, staff, assign
             {sorted.map((shift) =>
               editing === shift.id ? (
                 <li key={shift.id} className="rounded-lg border p-3">
-                  <ShiftForm
-                    shift={shift}
-                    staff={staff}
-                    onDone={() => setEditing(null)}
-                  />
+                  <ShiftForm shift={shift} onDone={() => setEditing(null)} />
                 </li>
               ) : (
                 <li
@@ -79,8 +78,9 @@ export function ShiftTemplatesDialog({ open, onOpenChange, shifts, staff, assign
                       {shift.startTime}–{shift.endTime}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {shiftDurationHours(shift)}h · Used by {getShiftUsage(assignments, shift.id)}{" "}
-                      assignment{getShiftUsage(assignments, shift.id) === 1 ? "" : "s"}
+                      {shiftDurationHours(shift)}h · Used by{" "}
+                      {getShiftUsage(assignments, shift.id)} assignment
+                      {getShiftUsage(assignments, shift.id) === 1 ? "" : "s"}
                     </div>
                   </div>
                   <div className="flex">
@@ -108,7 +108,7 @@ export function ShiftTemplatesDialog({ open, onOpenChange, shifts, staff, assign
 
           {editing === "new" ? (
             <div className="rounded-lg border p-3">
-              <ShiftForm staff={staff} onDone={() => setEditing(null)} />
+              <ShiftForm onDone={() => setEditing(null)} />
             </div>
           ) : (
             <Button
@@ -135,21 +135,12 @@ export function ShiftTemplatesDialog({ open, onOpenChange, shifts, staff, assign
   )
 }
 
-function ShiftForm({
-  shift,
-  staff,
-  onDone,
-}: {
-  shift?: Shift
-  staff: Staff[]
-  onDone: () => void
-}) {
+function ShiftForm({ shift, onDone }: { shift?: Shift; onDone: () => void }) {
   const addShift = useScheduleStore((s) => s.addShift)
   const updateShift = useScheduleStore((s) => s.updateShift)
   const [startTime, setStartTime] = useState(shift?.startTime ?? "09:00")
   const [endTime, setEndTime] = useState(shift?.endTime ?? "17:00")
   const [errors, setErrors] = useState<ShiftValidation["errors"]>({})
-  const [conflictMessages, setConflictMessages] = useState<string[]>([])
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -160,7 +151,6 @@ function ShiftForm({
       return
     }
     setErrors(result.errors)
-    setConflictMessages(result.conflicts.map((c) => describeConflict(c, staff, DAYS_OF_WEEK)))
   }
 
   const prefix = shift ? "Edit" : "New"
@@ -177,7 +167,9 @@ function ShiftForm({
             aria-invalid={!!errors.startTime}
             autoFocus
           />
-          {errors.startTime && <p className="text-xs text-destructive">{errors.startTime}</p>}
+          {errors.startTime && (
+            <p className="text-xs text-destructive">{errors.startTime}</p>
+          )}
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor={`${prefix}-end`}>End</Label>
@@ -188,17 +180,12 @@ function ShiftForm({
             onChange={(e) => setEndTime(e.target.value)}
             aria-invalid={!!errors.endTime}
           />
-          {errors.endTime && <p className="text-xs text-destructive">{errors.endTime}</p>}
+          {errors.endTime && (
+            <p className="text-xs text-destructive">{errors.endTime}</p>
+          )}
         </div>
       </div>
       {errors.form && <p className="text-xs text-destructive">{errors.form}</p>}
-      {conflictMessages.length > 0 && (
-        <ul className="list-disc pl-4 text-xs text-destructive">
-          {conflictMessages.map((m) => (
-            <li key={m}>{m}</li>
-          ))}
-        </ul>
-      )}
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onDone}>
           Cancel

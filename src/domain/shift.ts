@@ -17,9 +17,13 @@ export interface OverlapConflict {
   shiftIds: [string, string]
 }
 
-export function sortShifts<T extends Pick<Shift, "startTime" | "endTime">>(shifts: T[]): T[] {
+export function sortShifts<T extends Pick<Shift, "startTime" | "endTime">>(
+  shifts: T[]
+): T[] {
   return [...shifts].sort(
-    (a, b) => a.startTime.localeCompare(b.startTime) || a.endTime.localeCompare(b.endTime)
+    (a, b) =>
+      a.startTime.localeCompare(b.startTime) ||
+      a.endTime.localeCompare(b.endTime)
   )
 }
 
@@ -44,20 +48,37 @@ export function validateShiftInput(
 
   if (Object.keys(errors).length === 0) {
     const duplicate = existing.some(
-      (s) => s.id !== editingId && s.startTime === input.startTime && s.endTime === input.endTime
+      (s) =>
+        s.id !== editingId &&
+        s.startTime === input.startTime &&
+        s.endTime === input.endTime
     )
     if (duplicate) errors.form = "A shift with these times already exists."
   }
   return { ok: Object.keys(errors).length === 0, errors }
 }
 
-export function addShift(shifts: Shift[], scheduleId: string, input: ShiftInput, id: string): Shift[] {
-  return [...shifts, { id, scheduleId, startTime: input.startTime, endTime: input.endTime }]
+export function addShift(
+  shifts: Shift[],
+  scheduleId: string,
+  input: ShiftInput,
+  id: string
+): Shift[] {
+  return [
+    ...shifts,
+    { id, scheduleId, startTime: input.startTime, endTime: input.endTime },
+  ]
 }
 
-export function updateShift(shifts: Shift[], id: string, input: ShiftInput): Shift[] {
+export function updateShift(
+  shifts: Shift[],
+  id: string,
+  input: ShiftInput
+): Shift[] {
   return shifts.map((s) =>
-    s.id === id ? { ...s, startTime: input.startTime, endTime: input.endTime } : s
+    s.id === id
+      ? { ...s, startTime: input.startTime, endTime: input.endTime }
+      : s
   )
 }
 
@@ -73,12 +94,23 @@ export function removeShift(
   }
 }
 
-export function getShiftUsage(assignments: Assignment[], shiftId: string): number {
+export function getShiftUsage(
+  assignments: Assignment[],
+  shiftId: string
+): number {
   return assignments.filter((a) => a.shiftId === shiftId).length
 }
 
+/** Roster cells (`"staffId|dayOfWeek"`) that contain overlapping assignments. */
+export function overlapCellKeys(conflicts: OverlapConflict[]): Set<string> {
+  return new Set(conflicts.map((c) => `${c.staffId}|${c.dayOfWeek}`))
+}
+
 /** Finds employee/day pairs whose assigned shifts overlap in time. */
-export function findOverlapConflicts(shifts: Shift[], assignments: Assignment[]): OverlapConflict[] {
+export function findOverlapConflicts(
+  shifts: Shift[],
+  assignments: Assignment[]
+): OverlapConflict[] {
   const shiftById = new Map(shifts.map((s) => [s.id, s]))
   const groups = new Map<string, Assignment[]>()
   for (const a of assignments) {
@@ -109,7 +141,10 @@ export interface ShiftUpdateValidation extends ShiftValidation {
   conflicts: OverlapConflict[]
 }
 
-/** Validates an edit and blocks it if it would make an employee's assignments overlap. */
+/**
+ * Validates an edit. Overlaps the edit would create are NOT rejected: they are returned in
+ * `conflicts` so the roster can highlight them; publishing is blocked until they are resolved.
+ */
 export function validateShiftUpdate(
   shifts: Shift[],
   assignments: Assignment[],
@@ -120,17 +155,11 @@ export function validateShiftUpdate(
   if (!base.ok) return { ...base, conflicts: [] }
 
   // Only conflicts involving the edited shift are caused by this edit.
-  const caused = findOverlapConflicts(updateShift(shifts, id, input), assignments).filter((c) =>
-    c.shiftIds.includes(id)
-  )
-  if (caused.length > 0) {
-    return {
-      ok: false,
-      errors: { form: "These times would give an employee overlapping shifts on the same day." },
-      conflicts: caused,
-    }
-  }
-  return { ...base, conflicts: [] }
+  const caused = findOverlapConflicts(
+    updateShift(shifts, id, input),
+    assignments
+  ).filter((c) => c.shiftIds.includes(id))
+  return { ...base, conflicts: caused }
 }
 
 export function describeConflict(
@@ -138,6 +167,7 @@ export function describeConflict(
   staff: Staff[],
   dayNames: readonly string[]
 ): string {
-  const name = staff.find((s) => s.id === conflict.staffId)?.name ?? "An employee"
+  const name =
+    staff.find((s) => s.id === conflict.staffId)?.name ?? "An employee"
   return `${name} would have overlapping shifts on ${dayNames[conflict.dayOfWeek]}.`
 }

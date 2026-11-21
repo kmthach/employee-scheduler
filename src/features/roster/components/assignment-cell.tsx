@@ -51,6 +51,7 @@ export function AssignmentCell({
   onOpenShifts,
 }: Props) {
   const assignShift = useScheduleStore((s) => s.assignShift)
+  const restoreAssignment = useScheduleStore((s) => s.restoreAssignment)
   const changeShift = useScheduleStore((s) => s.changeAssignmentShift)
   const removeAssignment = useScheduleStore((s) => s.removeAssignment)
 
@@ -169,32 +170,33 @@ export function AssignmentCell({
       shifts.find((s) => s.id === a.shiftId) ??
       publishedShifts?.find((s) => s.id === a.shiftId)
     if (!shift) return null
-    // Reverting re-adds the assignment, which can be blocked (e.g. it now overlaps).
+    // Reverting is allowed even if it creates an overlap (highlighted; publishing stays blocked).
+    // It is only impossible when the shift template itself was deleted (Discard changes restores it).
     const reason = shifts.some((s) => s.id === a.shiftId)
-      ? blockReason(a.shiftId)
-      : "Shift deleted"
+      ? null
+      : "Shift template deleted"
     return (
       <div
         key={a.id}
-        className="group/removed relative"
+        className="group/removed relative min-w-20"
         title={`${label(shift)} will be removed when you publish`}
       >
         <Badge
           variant="secondary"
-          className="rounded-md line-through opacity-50"
+          className="w-full rounded-md line-through opacity-50"
           aria-label={`${label(shift)} on ${dayName}, pending removal`}
         >
           {label(shift)}
         </Badge>
-        <Button
-          variant="secondary"
-          size="xs"
+        {/* Same size and shape as the badge, so hovering swaps the label without shifting layout. */}
+        <button
+          type="button"
           disabled={reason !== null}
           title={reason ?? "Revert removal"}
           aria-label={`Revert removal of ${label(shift)} on ${dayName}`}
-          className="absolute inset-0 h-5 opacity-0 transition-opacity group-hover/removed:opacity-100 focus-visible:opacity-100"
+          className="absolute inset-0 inline-flex items-center justify-center gap-1 rounded-md bg-secondary text-xs font-medium text-secondary-foreground opacity-0 transition-opacity outline-none group-hover/removed:opacity-100 hover:bg-secondary/80 focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:text-muted-foreground disabled:hover:bg-secondary [&_svg]:size-3"
           onClick={() =>
-            assignShift({
+            restoreAssignment({
               staffId: person.id,
               shiftId: a.shiftId,
               dayOfWeek,
@@ -202,7 +204,7 @@ export function AssignmentCell({
           }
         >
           <Undo2 /> Revert
-        </Button>
+        </button>
       </div>
     )
   }

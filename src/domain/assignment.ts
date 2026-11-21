@@ -12,7 +12,12 @@ export type AssignmentCheck =
   | { ok: true }
   | {
       ok: false
-      reason: "missing-staff" | "missing-shift" | "wrong-schedule" | "overlap" | "duplicate"
+      reason:
+        | "missing-staff"
+        | "missing-shift"
+        | "wrong-schedule"
+        | "overlap"
+        | "duplicate"
       conflictShiftId?: string
     }
 
@@ -24,22 +29,26 @@ export type AssignmentCheck =
 export function checkAssignment(
   data: { staff: Staff[]; shifts: Shift[]; assignments: Assignment[] },
   candidate: AssignmentCandidate,
-  ignoreAssignmentId?: string
+  ignoreAssignmentId?: string,
+  /** Restoring a removed assignment may overlap; that is reported at publish time instead. */
+  options: { allowOverlap?: boolean } = {}
 ): AssignmentCheck {
   const person = data.staff.find((s) => s.id === candidate.staffId)
   if (!person) return { ok: false, reason: "missing-staff" }
   const shift = data.shifts.find((s) => s.id === candidate.shiftId)
   if (!shift) return { ok: false, reason: "missing-shift" }
-  if (person.scheduleId !== shift.scheduleId) return { ok: false, reason: "wrong-schedule" }
+  if (person.scheduleId !== shift.scheduleId)
+    return { ok: false, reason: "wrong-schedule" }
 
   for (const a of data.assignments) {
     if (a.id === ignoreAssignmentId) continue
-    if (a.staffId !== candidate.staffId || a.dayOfWeek !== candidate.dayOfWeek) continue
+    if (a.staffId !== candidate.staffId || a.dayOfWeek !== candidate.dayOfWeek)
+      continue
     const other = data.shifts.find((s) => s.id === a.shiftId)
     if (other && other.id === shift.id) {
       return { ok: false, reason: "duplicate", conflictShiftId: other.id }
     }
-    if (other && timesOverlap(shift, other)) {
+    if (other && !options.allowOverlap && timesOverlap(shift, other)) {
       return { ok: false, reason: "overlap", conflictShiftId: other.id }
     }
   }
@@ -52,7 +61,9 @@ export function describeBlock(check: AssignmentCheck, shifts: Shift[]): string {
   switch (check.reason) {
     case "overlap": {
       const other = shifts.find((s) => s.id === check.conflictShiftId)
-      return other ? `Overlaps ${other.startTime}–${other.endTime}` : "Overlaps another shift"
+      return other
+        ? `Overlaps ${other.startTime}–${other.endTime}`
+        : "Overlaps another shift"
     }
     case "duplicate":
       return "Already assigned"
@@ -82,7 +93,10 @@ export function updateAssignment(
   return assignments.map((a) => (a.id === id ? { ...a, ...patch } : a))
 }
 
-export function removeAssignment(assignments: Assignment[], id: string): Assignment[] {
+export function removeAssignment(
+  assignments: Assignment[],
+  id: string
+): Assignment[] {
   return assignments.filter((a) => a.id !== id)
 }
 
@@ -93,6 +107,11 @@ export function getOverMaxStaff(
   shifts: Shift[]
 ): { staff: Staff; assigned: number }[] {
   return staff
-    .map((s) => ({ staff: s, assigned: getAssignedHours(s.id, assignments, shifts) }))
-    .filter((x) => getHoursStatus(x.assigned, x.staff.maxWeeklyHours) === "over")
+    .map((s) => ({
+      staff: s,
+      assigned: getAssignedHours(s.id, assignments, shifts),
+    }))
+    .filter(
+      (x) => getHoursStatus(x.assigned, x.staff.maxWeeklyHours) === "over"
+    )
 }

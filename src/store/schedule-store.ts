@@ -13,16 +13,25 @@ import type { PublishValidation } from "@/domain/draft"
 import { createSchedule } from "@/domain/schedule"
 import {
   addShift,
-  getShiftUsage,
   removeShift,
   updateShift,
   validateShiftInput,
   validateShiftUpdate,
 } from "@/domain/shift"
-import type { OverlapConflict, ShiftInput, ShiftValidation } from "@/domain/shift"
+import type {
+  OverlapConflict,
+  ShiftInput,
+  ShiftValidation,
+} from "@/domain/shift"
 import { addStaffBatch, removeStaff, updateStaff } from "@/domain/staff"
 import type { StaffInput } from "@/domain/staff"
-import type { Assignment, Schedule, ScheduleContent, Shift, Staff } from "@/domain/types"
+import type {
+  Assignment,
+  Schedule,
+  ScheduleContent,
+  Shift,
+  Staff,
+} from "@/domain/types"
 
 export interface ShiftActionResult extends ShiftValidation {
   conflicts: OverlapConflict[]
@@ -54,6 +63,8 @@ interface ScheduleState {
   deleteShift: (id: string) => void
   /** Assignment actions re-check ERD rules and leave state untouched when `ok` is false. */
   assignShift: (candidate: AssignmentCandidate) => AssignmentCheck
+  /** Re-adds a removed assignment. Unlike `assignShift` it may create an overlap (blocks publishing). */
+  restoreAssignment: (candidate: AssignmentCandidate) => AssignmentCheck
   changeAssignmentShift: (id: string, shiftId: string) => AssignmentCheck
   removeAssignment: (id: string) => void
   /** Publishes the viewed week's draft. Blocked (state unchanged) while assignments overlap. */
@@ -64,9 +75,6 @@ interface ScheduleState {
 
 const todayId = getScheduleId(new Date())
 
-const touch = (schedules: Schedule[], id: string): Schedule[] =>
-  schedules.map((s) => (s.id === id ? { ...s, updatedAt: new Date().toISOString() } : s))
-
 type State = Pick<
   ScheduleState,
   "schedules" | "staff" | "shifts" | "assignments" | "publishedSnapshots"
@@ -76,13 +84,19 @@ type State = Pick<
  * Marks a schedule as changed. The first change to a published schedule starts a draft: the
  * published content is snapshotted and the status returns to "draft".
  */
-function markChanged(s: State, id: string): Pick<State, "schedules" | "publishedSnapshots"> {
+function markChanged(
+  s: State,
+  id: string
+): Pick<State, "schedules" | "publishedSnapshots"> {
   const schedule = s.schedules.find((x) => x.id === id)
-  const startsDraft = schedule?.status === "published" && !s.publishedSnapshots[id]
+  const startsDraft =
+    schedule?.status === "published" && !s.publishedSnapshots[id]
   const now = new Date().toISOString()
   return {
     schedules: s.schedules.map((x) =>
-      x.id === id ? { ...x, updatedAt: now, status: startsDraft ? "draft" : x.status } : x
+      x.id === id
+        ? { ...x, updatedAt: now, status: startsDraft ? "draft" : x.status }
+        : x
     ),
     publishedSnapshots: startsDraft
       ? { ...s.publishedSnapshots, [id]: getContent(s, id) }
@@ -94,17 +108,9 @@ function withoutSnapshot(
   snapshots: Record<string, ScheduleContent>,
   id: string
 ): Record<string, ScheduleContent> {
-  return Object.fromEntries(Object.entries(snapshots).filter(([key]) => key !== id))
-}
-
-/** Applies a shift-only edit to the published snapshot too, when one exists. */
-function mirrorShifts(
-  snapshots: Record<string, ScheduleContent>,
-  id: string,
-  edit: (shifts: Shift[]) => Shift[]
-): Record<string, ScheduleContent> {
-  const snap = snapshots[id]
-  return snap ? { ...snapshots, [id]: { ...snap, shifts: edit(snap.shifts) } } : snapshots
+  return Object.fromEntries(
+    Object.entries(snapshots).filter(([key]) => key !== id)
+  )
 }
 
 export const useScheduleStore = create<ScheduleState>((set, get) => ({
@@ -125,7 +131,9 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
   createSchedule: () =>
     set((s) => {
       if (s.schedules.some((x) => x.id === s.currentScheduleId)) return s
-      const created = createSchedule(s.currentScheduleId, new Date(), () => crypto.randomUUID())
+      const created = createSchedule(s.currentScheduleId, new Date(), () =>
+        crypto.randomUUID()
+      )
       return {
         schedules: [...s.schedules, created.schedule],
         shifts: [...s.shifts, ...created.shifts],
@@ -134,9 +142,15 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
 
   addStaffMany: (inputs) =>
     set((s) => {
-      if (inputs.length === 0 || !s.schedules.some((x) => x.id === s.currentScheduleId)) return s
+      if (
+        inputs.length === 0 ||
+        !s.schedules.some((x) => x.id === s.currentScheduleId)
+      )
+        return s
       return {
-        staff: addStaffBatch(s.staff, s.currentScheduleId, inputs, () => crypto.randomUUID()),
+        staff: addStaffBatch(s.staff, s.currentScheduleId, inputs, () =>
+          crypto.randomUUID()
+        ),
         ...markChanged(s, s.currentScheduleId),
       }
     }),
@@ -163,18 +177,20 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
     const s = get()
     const current = s.currentScheduleId
     if (!s.schedules.some((x) => x.id === current)) {
-      return { ok: false, errors: { form: "There is no schedule for this week." }, conflicts: [] }
+      return {
+        ok: false,
+        errors: { form: "There is no schedule for this week." },
+        conflicts: [],
+      }
     }
-    const result = validateShiftInput(input, s.shifts.filter((x) => x.scheduleId === current))
+    const result = validateShiftInput(
+      input,
+      s.shifts.filter((x) => x.scheduleId === current)
+    )
     if (!result.ok) return { ...result, conflicts: [] }
-    // Adding a template changes no assignment, so it is not a schedule change (no draft).
-    const id = crypto.randomUUID()
     set({
-      shifts: addShift(s.shifts, current, input, id),
-      publishedSnapshots: mirrorShifts(s.publishedSnapshots, current, (shifts) =>
-        addShift(shifts, current, input, id)
-      ),
-      schedules: touch(s.schedules, current),
+      shifts: addShift(s.shifts, current, input, crypto.randomUUID()),
+      ...markChanged(s, current),
     })
     return { ...result, conflicts: [] }
   },
@@ -182,7 +198,12 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
   updateShift: (id, input) => {
     const s = get()
     const target = s.shifts.find((x) => x.id === id)
-    if (!target) return { ok: false, errors: { form: "This shift no longer exists." }, conflicts: [] }
+    if (!target)
+      return {
+        ok: false,
+        errors: { form: "This shift no longer exists." },
+        conflicts: [],
+      }
     const result = validateShiftUpdate(
       s.shifts.filter((x) => x.scheduleId === target.scheduleId),
       s.assignments.filter((a) => a.scheduleId === target.scheduleId),
@@ -190,18 +211,9 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
       input
     )
     if (!result.ok) return result
-    const used = getShiftUsage(s.assignments, id) > 0
     set({
       shifts: updateShift(s.shifts, id, input),
-      // Editing a used template changes the roster (draft); an unused one is applied everywhere.
-      ...(used
-        ? markChanged(s, target.scheduleId)
-        : {
-            schedules: touch(s.schedules, target.scheduleId),
-            publishedSnapshots: mirrorShifts(s.publishedSnapshots, target.scheduleId, (shifts) =>
-              updateShift(shifts, id, input)
-            ),
-          }),
+      ...markChanged(s, target.scheduleId),
     })
     return result
   },
@@ -211,22 +223,14 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
       const target = s.shifts.find((x) => x.id === id)
       if (!target) return s
       const result = removeShift(s.shifts, s.assignments, id)
-      if (getShiftUsage(s.assignments, id) > 0) {
-        return { ...result, ...markChanged(s, target.scheduleId) }
-      }
-      return {
-        ...result,
-        schedules: touch(s.schedules, target.scheduleId),
-        publishedSnapshots: mirrorShifts(s.publishedSnapshots, target.scheduleId, (shifts) =>
-          shifts.filter((x) => x.id !== id)
-        ),
-      }
+      return { ...result, ...markChanged(s, target.scheduleId) }
     }),
 
   assignShift: (candidate) => {
     const s = get()
     const current = s.currentScheduleId
-    if (!s.schedules.some((x) => x.id === current)) return { ok: false, reason: "missing-staff" }
+    if (!s.schedules.some((x) => x.id === current))
+      return { ok: false, reason: "missing-staff" }
     const scoped = {
       staff: s.staff.filter((x) => x.scheduleId === current),
       shifts: s.shifts.filter((x) => x.scheduleId === current),
@@ -235,7 +239,38 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
     const check = checkAssignment(scoped, candidate)
     if (!check.ok) return check
     set({
-      assignments: addAssignment(s.assignments, current, candidate, crypto.randomUUID()),
+      assignments: addAssignment(
+        s.assignments,
+        current,
+        candidate,
+        crypto.randomUUID()
+      ),
+      ...markChanged(s, current),
+    })
+    return check
+  },
+
+  restoreAssignment: (candidate) => {
+    const s = get()
+    const current = s.currentScheduleId
+    if (!s.schedules.some((x) => x.id === current))
+      return { ok: false, reason: "missing-staff" }
+    const scoped = {
+      staff: s.staff.filter((x) => x.scheduleId === current),
+      shifts: s.shifts.filter((x) => x.scheduleId === current),
+      assignments: s.assignments.filter((x) => x.scheduleId === current),
+    }
+    const check = checkAssignment(scoped, candidate, undefined, {
+      allowOverlap: true,
+    })
+    if (!check.ok) return check
+    set({
+      assignments: addAssignment(
+        s.assignments,
+        current,
+        candidate,
+        crypto.randomUUID()
+      ),
       ...markChanged(s, current),
     })
     return check
@@ -248,7 +283,9 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
     const scoped = {
       staff: s.staff.filter((x) => x.scheduleId === target.scheduleId),
       shifts: s.shifts.filter((x) => x.scheduleId === target.scheduleId),
-      assignments: s.assignments.filter((x) => x.scheduleId === target.scheduleId),
+      assignments: s.assignments.filter(
+        (x) => x.scheduleId === target.scheduleId
+      ),
     }
     const check = checkAssignment(
       scoped,
@@ -278,11 +315,14 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
     const id = s.currentScheduleId
     const content = getContent(s, id)
     const result = validateForPublish(content)
-    if (!result.ok || !s.schedules.some((x) => x.id === id)) return { ...result, ok: false }
+    if (!result.ok || !s.schedules.some((x) => x.id === id))
+      return { ...result, ok: false }
     set({
       publishedSnapshots: withoutSnapshot(s.publishedSnapshots, id),
       schedules: s.schedules.map((x) =>
-        x.id === id ? { ...x, status: "published", updatedAt: new Date().toISOString() } : x
+        x.id === id
+          ? { ...x, status: "published", updatedAt: new Date().toISOString() }
+          : x
       ),
     })
     return result
@@ -297,7 +337,9 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
         ...replaceContent(s, id, snapshot),
         publishedSnapshots: withoutSnapshot(s.publishedSnapshots, id),
         schedules: s.schedules.map((x) =>
-          x.id === id ? { ...x, status: "published", updatedAt: new Date().toISOString() } : x
+          x.id === id
+            ? { ...x, status: "published", updatedAt: new Date().toISOString() }
+            : x
         ),
       }
     }),

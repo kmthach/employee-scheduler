@@ -12,7 +12,11 @@ import {
 import { getWeekDays } from "@/domain/date"
 import { diffAssignments } from "@/domain/draft"
 import { getAssignedHours, getHoursStatus } from "@/domain/hours"
-import { sortShifts } from "@/domain/shift"
+import {
+  findOverlapConflicts,
+  overlapCellKeys,
+  sortShifts,
+} from "@/domain/shift"
 import type {
   Assignment,
   DayOfWeek,
@@ -56,6 +60,9 @@ export function RosterGrid({
 }: Props) {
   const days = getWeekDays(scheduleId)
   const sortedShifts = sortShifts(shifts)
+  const overlapCells = overlapCellKeys(
+    findOverlapConflicts(shifts, assignments)
+  )
   const diff = published
     ? diffAssignments(published.assignments, assignments)
     : undefined
@@ -122,24 +129,35 @@ export function RosterGrid({
                   </div>
                 </div>
               </TableCell>
-              {days.map((_, dayIndex) => (
-                <TableCell
-                  key={dayIndex}
-                  className="border-l transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50"
-                >
-                  <AssignmentCell
-                    person={person}
-                    dayOfWeek={dayIndex as DayOfWeek}
-                    shifts={sortedShifts}
-                    staff={staff}
-                    assignments={assignments}
-                    diff={diff}
-                    publishedShifts={published?.shifts}
-                    shiftColor={shiftColor}
-                    onOpenShifts={onOpenShifts}
-                  />
-                </TableCell>
-              ))}
+              {days.map((_, dayIndex) => {
+                const hasOverlap = overlapCells.has(`${person.id}|${dayIndex}`)
+                return (
+                  <TableCell
+                    key={dayIndex}
+                    title={
+                      hasOverlap
+                        ? "Overlapping shifts: fix before publishing"
+                        : undefined
+                    }
+                    className={cn(
+                      "border-l transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50",
+                      hasOverlap && "bg-destructive/10 hover:bg-destructive/15"
+                    )}
+                  >
+                    <AssignmentCell
+                      person={person}
+                      dayOfWeek={dayIndex as DayOfWeek}
+                      shifts={sortedShifts}
+                      staff={staff}
+                      assignments={assignments}
+                      diff={diff}
+                      publishedShifts={published?.shifts}
+                      shiftColor={shiftColor}
+                      onOpenShifts={onOpenShifts}
+                    />
+                  </TableCell>
+                )
+              })}
             </TableRow>
           ))}
           <TableRow className="hover:bg-transparent has-aria-expanded:bg-transparent">

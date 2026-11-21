@@ -133,7 +133,7 @@ Tasks:
 - [x] Remove shift templates.
 - [x] Validate start and end times.
 - [x] Handle changes to templates that already have assignments.
-- [x] Block template edits that would overlap an employee's assignments; deleting a template removes its assignments after confirmation.
+- [x] Deleting a template removes its assignments after confirmation. ~~Block template edits that would overlap an employee's assignments~~ (superseded in Phase 4: such edits are saved as draft changes and highlighted; publishing is blocked until resolved).
 
 **Completion criteria:**
 
@@ -158,12 +158,14 @@ Tasks:
 - [x] Warn when an employee exceeds maximum weekly hours.
 - [x] Add useful empty states and assignment feedback.
 - [x] Add schedule status: `draft` (new schedules) and `published`.
-- [x] First change to a published schedule automatically starts a draft copy; the published version is kept until publish or discard. Changes: assignments, staff, and editing/deleting a used shift. Adding a shift, and editing/deleting an unused shift, do not start a draft.
+- [x] First change to a published schedule automatically starts a draft copy; the published version is kept until publish or discard. Changes: assignments, staff, and adding/editing/deleting shift templates.
 - [x] Publish replaces the published schedule with the draft and clears the draft; only allowed when no assignments overlap.
 - [x] Discard changes restores the last published schedule.
 - [x] Exceeding maximum weekly hours stays a warning and never blocks publishing.
-- [x] While a published schedule has a draft, removed assignments stay in the roster as a struck-through, faded badge until publish; hovering shows a Revert button (disabled with a reason if the assignment would now overlap). A shift pending removal is not offered in the + or Change shift menus; Revert is the only way back.
+- [x] While a published schedule has a draft, removed assignments stay in the roster as a struck-through, faded badge until publish; hovering shows a Revert button. Revert is allowed even if it creates an overlap (highlighted, publishing blocked); it is disabled only if the shift template was deleted (Discard changes restores it). A shift pending removal is not offered in the + or Change shift menus; Revert is the only way back.
 - [x] Assignments added in the draft (not yet published) are shown with a grey badge instead of the shift colour.
+- [x] Shift template edits that make an employee's shifts overlap are saved (as a draft change); the affected roster cells are highlighted and publishing stays blocked until the overlap is resolved. New overlapping assignments are still blocked in the + / Change shift menus.
+- [x] Discard changes also restores shift templates (added, edited, or deleted).
 - [ ] Manually verify the Publish button (disabled and labelled "Published" once published) and Discard changes in the browser.
 
 **Completion criteria:**

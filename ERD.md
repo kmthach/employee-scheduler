@@ -75,8 +75,8 @@ Represents one typical Monday–Sunday scheduling week.
 - Each Monday date can identify only one schedule.
 - A schedule owns its staff, shift templates, assignments, and transaction records.
 - Data belonging to one schedule must not be shared with another schedule.
-- The first change to a published schedule (assignments, staff, or editing/deleting a used shift template) returns it to `draft` and keeps the last published content until the draft is published or discarded. Adding a shift template, or editing/deleting an unused one, is not a change.
-- A schedule can be published only when no employee has overlapping assignments. Exceeding maximum weekly hours is a warning and does not block publishing.
+- The first change to a published schedule (assignments, staff, or adding/editing/deleting a shift template) returns it to `draft` and keeps the last published content, including shift templates, until the draft is published or discarded.
+- A schedule can be published only when no employee has overlapping assignments. Editing a shift template can create overlaps in a draft; they are highlighted in the roster and must be resolved before publishing. Exceeding maximum weekly hours is a warning and does not block publishing.
 
 ### 3.2 Staff
 
