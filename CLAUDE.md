@@ -43,7 +43,8 @@ See ROADMAP.md for implementation phases.
 - Write tests for business logic and calculations.
 - Run type checks and builds after implementation.
 - Do not make unrelated changes.
-- 
+- Always update ROADMAP.md as part of every change: check off completed tasks, and record scope changes or new work. Include the roadmap update in the same commit.
+
 ## UI Guidelines
 - Prefer [shadcn/ui](https://ui.shadcn.com/) components whenever they fit the requirement.
 - Before building a UI component from scratch, check whether an appropriate shadcn/ui component already exists.

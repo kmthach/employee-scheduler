@@ -235,7 +235,7 @@ Unless necessary to satisfy the requirements, do not implement:
 - Payroll calculations.
 - Employee availability or time-off management.
 - Notifications.
-- Publishing schedules to employees.
+- Publishing schedules to employees (sending or sharing). The in-app draft/published status is in scope.
 - Backend services or cloud synchronization.
 
 ## 6. Acceptance Criteria

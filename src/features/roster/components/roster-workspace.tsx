@@ -11,6 +11,7 @@ import { StaffFormDialog } from "@/features/staff/components/staff-form-dialog"
 import { useScheduleStore } from "@/store/schedule-store"
 
 import { OverMaxAlert } from "./over-max-alert"
+import { PublishBar } from "./publish-bar"
 import { RosterGrid } from "./roster-grid"
 
 function EmptyState({
@@ -38,7 +39,8 @@ function EmptyState({
 
 export function RosterWorkspace() {
   const scheduleId = useScheduleStore((s) => s.currentScheduleId)
-  const hasSchedule = useScheduleStore((s) => s.schedules.some((x) => x.id === s.currentScheduleId))
+  const schedule = useScheduleStore((s) => s.schedules.find((x) => x.id === s.currentScheduleId))
+  const published = useScheduleStore((s) => s.publishedSnapshots[s.currentScheduleId])
   const allStaff = useScheduleStore((s) => s.staff)
   const allShifts = useScheduleStore((s) => s.shifts)
   const allAssignments = useScheduleStore((s) => s.assignments)
@@ -59,7 +61,7 @@ export function RosterWorkspace() {
     [allAssignments, scheduleId]
   )
 
-  if (!hasSchedule) {
+  if (!schedule) {
     return (
       <main className="p-6">
         <EmptyState
@@ -78,7 +80,8 @@ export function RosterWorkspace() {
 
   return (
     <main className="flex flex-col gap-4 p-6">
-      <div className="flex justify-end">
+      <div className="flex items-start justify-between gap-4">
+        <PublishBar schedule={schedule} staff={staff} shifts={shifts} assignments={assignments} />
         <Button variant="outline" onClick={() => setShiftsOpen(true)}>
           <Clock /> Shifts ({shifts.length})
         </Button>
@@ -94,6 +97,7 @@ export function RosterWorkspace() {
         staff={staff}
         shifts={shifts}
         assignments={assignments}
+        published={published}
         onOpenShifts={() => setShiftsOpen(true)}
         onAddStaff={() => {
           setEditing(null)

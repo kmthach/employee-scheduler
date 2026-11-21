@@ -23,10 +23,21 @@ export interface Assignment {
   dayOfWeek: DayOfWeek
 }
 
+export type ScheduleStatus = "draft" | "published"
+
 export interface Schedule {
   id: string // Monday date, YYYY-MM-DD
+  /** "draft" until published; a published schedule returns to "draft" on its first change. */
+  status: ScheduleStatus
   createdAt: string // ISO timestamp
   updatedAt: string // ISO timestamp
+}
+
+/** The editable rows a schedule owns (what a draft copy / published snapshot holds). */
+export interface ScheduleContent {
+  staff: Staff[]
+  shifts: Shift[]
+  assignments: Assignment[]
 }
 
 export interface TransactionRecord {

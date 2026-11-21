@@ -23,6 +23,7 @@ describe("createSchedule", () => {
     const { schedule, shifts } = createSchedule("2026-11-16", now, newId)
     expect(schedule).toEqual({
       id: "2026-11-16",
+      status: "draft",
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
     })

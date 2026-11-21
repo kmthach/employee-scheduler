@@ -8,9 +8,12 @@ import {
   updateAssignment,
 } from "@/domain/assignment"
 import type { AssignmentCandidate, AssignmentCheck } from "@/domain/assignment"
+import { getContent, replaceContent, validateForPublish } from "@/domain/draft"
+import type { PublishValidation } from "@/domain/draft"
 import { createSchedule } from "@/domain/schedule"
 import {
   addShift,
+  getShiftUsage,
   removeShift,
   updateShift,
   validateShiftInput,
@@ -19,7 +22,7 @@ import {
 import type { OverlapConflict, ShiftInput, ShiftValidation } from "@/domain/shift"
 import { addStaffBatch, removeStaff, updateStaff } from "@/domain/staff"
 import type { StaffInput } from "@/domain/staff"
-import type { Assignment, Schedule, Shift, Staff } from "@/domain/types"
+import type { Assignment, Schedule, ScheduleContent, Shift, Staff } from "@/domain/types"
 
 export interface ShiftActionResult extends ShiftValidation {
   conflicts: OverlapConflict[]
@@ -32,6 +35,11 @@ interface ScheduleState {
   staff: Staff[]
   shifts: Shift[]
   assignments: Assignment[]
+  /**
+   * The flat arrays above always hold the working version (the draft, if any). When a published
+   * schedule has pending changes, its last published content is kept here until publish/discard.
+   */
+  publishedSnapshots: Record<string, ScheduleContent>
   goToPreviousWeek: () => void
   goToNextWeek: () => void
   goToCurrentWeek: () => void
@@ -48,12 +56,56 @@ interface ScheduleState {
   assignShift: (candidate: AssignmentCandidate) => AssignmentCheck
   changeAssignmentShift: (id: string, shiftId: string) => AssignmentCheck
   removeAssignment: (id: string) => void
+  /** Publishes the viewed week's draft. Blocked (state unchanged) while assignments overlap. */
+  publishSchedule: () => PublishValidation
+  /** Throws away pending changes to a published schedule, restoring its published content. */
+  discardDraft: () => void
 }
 
 const todayId = getScheduleId(new Date())
 
 const touch = (schedules: Schedule[], id: string): Schedule[] =>
   schedules.map((s) => (s.id === id ? { ...s, updatedAt: new Date().toISOString() } : s))
+
+type State = Pick<
+  ScheduleState,
+  "schedules" | "staff" | "shifts" | "assignments" | "publishedSnapshots"
+>
+
+/**
+ * Marks a schedule as changed. The first change to a published schedule starts a draft: the
+ * published content is snapshotted and the status returns to "draft".
+ */
+function markChanged(s: State, id: string): Pick<State, "schedules" | "publishedSnapshots"> {
+  const schedule = s.schedules.find((x) => x.id === id)
+  const startsDraft = schedule?.status === "published" && !s.publishedSnapshots[id]
+  const now = new Date().toISOString()
+  return {
+    schedules: s.schedules.map((x) =>
+      x.id === id ? { ...x, updatedAt: now, status: startsDraft ? "draft" : x.status } : x
+    ),
+    publishedSnapshots: startsDraft
+      ? { ...s.publishedSnapshots, [id]: getContent(s, id) }
+      : s.publishedSnapshots,
+  }
+}
+
+function withoutSnapshot(
+  snapshots: Record<string, ScheduleContent>,
+  id: string
+): Record<string, ScheduleContent> {
+  return Object.fromEntries(Object.entries(snapshots).filter(([key]) => key !== id))
+}
+
+/** Applies a shift-only edit to the published snapshot too, when one exists. */
+function mirrorShifts(
+  snapshots: Record<string, ScheduleContent>,
+  id: string,
+  edit: (shifts: Shift[]) => Shift[]
+): Record<string, ScheduleContent> {
+  const snap = snapshots[id]
+  return snap ? { ...snapshots, [id]: { ...snap, shifts: edit(snap.shifts) } } : snapshots
+}
 
 export const useScheduleStore = create<ScheduleState>((set, get) => ({
   todayScheduleId: todayId,
@@ -62,6 +114,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
   staff: [],
   shifts: [],
   assignments: [],
+  publishedSnapshots: {},
 
   goToPreviousWeek: () =>
     set((s) => ({ currentScheduleId: moveWeek(s.currentScheduleId, -1) })),
@@ -84,7 +137,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
       if (inputs.length === 0 || !s.schedules.some((x) => x.id === s.currentScheduleId)) return s
       return {
         staff: addStaffBatch(s.staff, s.currentScheduleId, inputs, () => crypto.randomUUID()),
-        schedules: touch(s.schedules, s.currentScheduleId),
+        ...markChanged(s, s.currentScheduleId),
       }
     }),
 
@@ -94,7 +147,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
       if (!target) return s
       return {
         staff: updateStaff(s.staff, id, input),
-        schedules: touch(s.schedules, target.scheduleId),
+        ...markChanged(s, target.scheduleId),
       }
     }),
 
@@ -103,7 +156,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
       const target = s.staff.find((x) => x.id === id)
       if (!target) return s
       const result = removeStaff(s.staff, s.assignments, id)
-      return { ...result, schedules: touch(s.schedules, target.scheduleId) }
+      return { ...result, ...markChanged(s, target.scheduleId) }
     }),
 
   addShift: (input) => {
@@ -114,8 +167,13 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
     }
     const result = validateShiftInput(input, s.shifts.filter((x) => x.scheduleId === current))
     if (!result.ok) return { ...result, conflicts: [] }
+    // Adding a template changes no assignment, so it is not a schedule change (no draft).
+    const id = crypto.randomUUID()
     set({
-      shifts: addShift(s.shifts, current, input, crypto.randomUUID()),
+      shifts: addShift(s.shifts, current, input, id),
+      publishedSnapshots: mirrorShifts(s.publishedSnapshots, current, (shifts) =>
+        addShift(shifts, current, input, id)
+      ),
       schedules: touch(s.schedules, current),
     })
     return { ...result, conflicts: [] }
@@ -132,9 +190,18 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
       input
     )
     if (!result.ok) return result
+    const used = getShiftUsage(s.assignments, id) > 0
     set({
       shifts: updateShift(s.shifts, id, input),
-      schedules: touch(s.schedules, target.scheduleId),
+      // Editing a used template changes the roster (draft); an unused one is applied everywhere.
+      ...(used
+        ? markChanged(s, target.scheduleId)
+        : {
+            schedules: touch(s.schedules, target.scheduleId),
+            publishedSnapshots: mirrorShifts(s.publishedSnapshots, target.scheduleId, (shifts) =>
+              updateShift(shifts, id, input)
+            ),
+          }),
     })
     return result
   },
@@ -144,7 +211,16 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
       const target = s.shifts.find((x) => x.id === id)
       if (!target) return s
       const result = removeShift(s.shifts, s.assignments, id)
-      return { ...result, schedules: touch(s.schedules, target.scheduleId) }
+      if (getShiftUsage(s.assignments, id) > 0) {
+        return { ...result, ...markChanged(s, target.scheduleId) }
+      }
+      return {
+        ...result,
+        schedules: touch(s.schedules, target.scheduleId),
+        publishedSnapshots: mirrorShifts(s.publishedSnapshots, target.scheduleId, (shifts) =>
+          shifts.filter((x) => x.id !== id)
+        ),
+      }
     }),
 
   assignShift: (candidate) => {
@@ -160,7 +236,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
     if (!check.ok) return check
     set({
       assignments: addAssignment(s.assignments, current, candidate, crypto.randomUUID()),
-      schedules: touch(s.schedules, current),
+      ...markChanged(s, current),
     })
     return check
   },
@@ -182,7 +258,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
     if (!check.ok) return check
     set({
       assignments: updateAssignment(s.assignments, id, { shiftId }),
-      schedules: touch(s.schedules, target.scheduleId),
+      ...markChanged(s, target.scheduleId),
     })
     return check
   },
@@ -193,7 +269,36 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
       if (!target) return s
       return {
         assignments: removeAssignment(s.assignments, id),
-        schedules: touch(s.schedules, target.scheduleId),
+        ...markChanged(s, target.scheduleId),
+      }
+    }),
+
+  publishSchedule: () => {
+    const s = get()
+    const id = s.currentScheduleId
+    const content = getContent(s, id)
+    const result = validateForPublish(content)
+    if (!result.ok || !s.schedules.some((x) => x.id === id)) return { ...result, ok: false }
+    set({
+      publishedSnapshots: withoutSnapshot(s.publishedSnapshots, id),
+      schedules: s.schedules.map((x) =>
+        x.id === id ? { ...x, status: "published", updatedAt: new Date().toISOString() } : x
+      ),
+    })
+    return result
+  },
+
+  discardDraft: () =>
+    set((s) => {
+      const id = s.currentScheduleId
+      const snapshot = s.publishedSnapshots[id]
+      if (!snapshot) return s
+      return {
+        ...replaceContent(s, id, snapshot),
+        publishedSnapshots: withoutSnapshot(s.publishedSnapshots, id),
+        schedules: s.schedules.map((x) =>
+          x.id === id ? { ...x, status: "published", updatedAt: new Date().toISOString() } : x
+        ),
       }
     }),
 }))

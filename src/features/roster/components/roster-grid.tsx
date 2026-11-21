@@ -10,9 +10,16 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { getWeekDays } from "@/domain/date"
+import { diffAssignments } from "@/domain/draft"
 import { getAssignedHours, getHoursStatus } from "@/domain/hours"
 import { sortShifts } from "@/domain/shift"
-import type { Assignment, DayOfWeek, Shift, Staff } from "@/domain/types"
+import type {
+  Assignment,
+  DayOfWeek,
+  ScheduleContent,
+  Shift,
+  Staff,
+} from "@/domain/types"
 import { cn } from "@/lib/utils"
 
 import { AssignmentCell } from "./assignment-cell"
@@ -22,6 +29,8 @@ interface Props {
   staff: Staff[]
   shifts: Shift[]
   assignments: Assignment[]
+  /** Last published content, present while a published schedule has unpublished changes. */
+  published?: ScheduleContent
   onAddStaff: () => void
   onOpenShifts: () => void
   onEditStaff: (staff: Staff) => void
@@ -39,6 +48,7 @@ export function RosterGrid({
   staff,
   shifts,
   assignments,
+  published,
   onAddStaff,
   onOpenShifts,
   onEditStaff,
@@ -46,6 +56,9 @@ export function RosterGrid({
 }: Props) {
   const days = getWeekDays(scheduleId)
   const sortedShifts = sortShifts(shifts)
+  const diff = published
+    ? diffAssignments(published.assignments, assignments)
+    : undefined
   const shiftColor = (shiftId: string) => {
     const index = sortedShifts.findIndex((s) => s.id === shiftId)
     return SHIFT_COLORS[Math.max(index, 0) % SHIFT_COLORS.length]
@@ -61,7 +74,10 @@ export function RosterGrid({
               <TableHead key={d.getTime()} className="border-l">
                 <div>{d.toLocaleDateString("en-US", { weekday: "short" })}</div>
                 <div className="text-xs font-normal text-muted-foreground">
-                  {d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  {d.toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  })}
                 </div>
               </TableHead>
             ))}
@@ -69,13 +85,20 @@ export function RosterGrid({
         </TableHeader>
         <TableBody>
           {staff.map((person) => (
-            <TableRow key={person.id} className="align-top hover:bg-transparent has-aria-expanded:bg-transparent">
+            <TableRow
+              key={person.id}
+              className="align-top hover:bg-transparent has-aria-expanded:bg-transparent"
+            >
               <TableCell className="font-medium whitespace-normal transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="truncate">{person.name}</div>
                     <HoursLabel
-                      assigned={getAssignedHours(person.id, assignments, shifts)}
+                      assigned={getAssignedHours(
+                        person.id,
+                        assignments,
+                        shifts
+                      )}
                       max={person.maxWeeklyHours}
                     />
                   </div>
@@ -100,13 +123,18 @@ export function RosterGrid({
                 </div>
               </TableCell>
               {days.map((_, dayIndex) => (
-                <TableCell key={dayIndex} className="border-l transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50">
+                <TableCell
+                  key={dayIndex}
+                  className="border-l transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50"
+                >
                   <AssignmentCell
                     person={person}
                     dayOfWeek={dayIndex as DayOfWeek}
                     shifts={sortedShifts}
                     staff={staff}
                     assignments={assignments}
+                    diff={diff}
+                    publishedShifts={published?.shifts}
                     shiftColor={shiftColor}
                     onOpenShifts={onOpenShifts}
                   />
@@ -116,7 +144,11 @@ export function RosterGrid({
           ))}
           <TableRow className="hover:bg-transparent has-aria-expanded:bg-transparent">
             <TableCell colSpan={days.length + 1} className="p-1">
-              <Button variant="ghost" className="w-full justify-start" onClick={onAddStaff}>
+              <Button
+                variant="ghost"
+                className="w-full justify-start"
+                onClick={onAddStaff}
+              >
                 <Plus /> Add employee
               </Button>
             </TableCell>

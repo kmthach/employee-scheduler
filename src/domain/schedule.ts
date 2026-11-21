@@ -23,7 +23,7 @@ export function createSchedule(
   }
   const timestamp = now.toISOString()
   return {
-    schedule: { id: scheduleId, createdAt: timestamp, updatedAt: timestamp },
+    schedule: { id: scheduleId, status: "draft", createdAt: timestamp, updatedAt: timestamp },
     shifts: DEFAULT_SHIFT_TIMES.map((t) => ({ id: newId(), scheduleId, ...t })),
   }
 }

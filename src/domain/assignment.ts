@@ -12,7 +12,7 @@ export type AssignmentCheck =
   | { ok: true }
   | {
       ok: false
-      reason: "missing-staff" | "missing-shift" | "wrong-schedule" | "overlap"
+      reason: "missing-staff" | "missing-shift" | "wrong-schedule" | "overlap" | "duplicate"
       conflictShiftId?: string
     }
 
@@ -36,6 +36,9 @@ export function checkAssignment(
     if (a.id === ignoreAssignmentId) continue
     if (a.staffId !== candidate.staffId || a.dayOfWeek !== candidate.dayOfWeek) continue
     const other = data.shifts.find((s) => s.id === a.shiftId)
+    if (other && other.id === shift.id) {
+      return { ok: false, reason: "duplicate", conflictShiftId: other.id }
+    }
     if (other && timesOverlap(shift, other)) {
       return { ok: false, reason: "overlap", conflictShiftId: other.id }
     }
@@ -51,6 +54,8 @@ export function describeBlock(check: AssignmentCheck, shifts: Shift[]): string {
       const other = shifts.find((s) => s.id === check.conflictShiftId)
       return other ? `Overlaps ${other.startTime}–${other.endTime}` : "Overlaps another shift"
     }
+    case "duplicate":
+      return "Already assigned"
     case "missing-staff":
       return "Employee no longer exists"
     case "missing-shift":

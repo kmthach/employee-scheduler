@@ -21,6 +21,7 @@ erDiagram
 
     SCHEDULE {
         string id PK "Monday date YYYY-MM-DD"
+        string status "draft | published"
         datetime createdAt
         datetime updatedAt
     }
@@ -65,6 +66,7 @@ Represents one typical Monday–Sunday scheduling week.
 | Field | Type | Description |
 |---|---|---|
 | `id` | string (PK) | Monday's date in `YYYY-MM-DD` format |
+| `status` | `draft` \| `published` | New schedules are `draft`; publishing sets `published` |
 | `createdAt` | datetime | Creation timestamp |
 | `updatedAt` | datetime | Last update timestamp |
 
@@ -73,6 +75,8 @@ Represents one typical Monday–Sunday scheduling week.
 - Each Monday date can identify only one schedule.
 - A schedule owns its staff, shift templates, assignments, and transaction records.
 - Data belonging to one schedule must not be shared with another schedule.
+- The first change to a published schedule (assignments, staff, or editing/deleting a used shift template) returns it to `draft` and keeps the last published content until the draft is published or discarded. Adding a shift template, or editing/deleting an unused one, is not a change.
+- A schedule can be published only when no employee has overlapping assignments. Exceeding maximum weekly hours is a warning and does not block publishing.
 
 ### 3.2 Staff
 

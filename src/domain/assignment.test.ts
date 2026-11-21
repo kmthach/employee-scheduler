@@ -41,7 +41,8 @@ describe("checkAssignment", () => {
 
   it("blocks the identical shift twice on one day", () => {
     const r = checkAssignment(data([asg("1", "alex", "am")]), { staffId: "alex", shiftId: "am", dayOfWeek: 0 })
-    expect(r).toEqual({ ok: false, reason: "overlap", conflictShiftId: "am" })
+    expect(r).toEqual({ ok: false, reason: "duplicate", conflictShiftId: "am" })
+    expect(describeBlock(r, shifts)).toBe("Already assigned")
   })
 
   it("blocks overlapping shifts and explains which one", () => {
