@@ -6,13 +6,15 @@ export interface UnderstaffedRange {
   /** Clock hours, e.g. start 21 and end 23 means 21:00–23:00. */
   startHour: number
   endHour: number
-  /** Staff these hours need (15 transactions per staff hour) and what the roster has. */
+  /** Staff these hours need (at the configured transactions per staff hour) and what the roster has. */
   required: number
   staffed: number
 }
 
 export interface AutoScheduleSummary {
   assignmentCount: number
+  /** Transactions per employee-hour the staffing requirement was based on. */
+  transactionsPerStaffHour: number
   /** Consecutive hours with the same shortfall, merged per day. */
   understaffed: UnderstaffedRange[]
   understaffedStaffHours: number
@@ -54,6 +56,7 @@ export function summarizeAutoSchedule(
   }
   return {
     assignmentCount: result.assignments.length,
+    transactionsPerStaffHour: result.transactionsPerStaffHour,
     understaffed,
     understaffedStaffHours: result.understaffedStaffHours,
     notes: result.notes,

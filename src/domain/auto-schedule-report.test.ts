@@ -15,6 +15,7 @@ const result = (
   extra: Partial<AutoScheduleResult> = {}
 ): AutoScheduleResult => ({
   assignments: [{ staffId: "a", shiftId: "s", dayOfWeek: 0 }],
+  transactionsPerStaffHour: 15,
   status: "optimal",
   shortfalls,
   understaffing: shortfalls.reduce((n, s) => n + s.required - s.staffed, 0),
@@ -62,5 +63,12 @@ describe("summarizeAutoSchedule", () => {
     expect(s.understaffedStaffHours).toBe(0)
     expect(s.notes).toEqual(["note"])
     expect(s.assignmentCount).toBe(1)
+  })
+
+  it("carries the transactions per staff hour that was used", () => {
+    const s = summarizeAutoSchedule(
+      result([], { transactionsPerStaffHour: 25 })
+    )
+    expect(s.transactionsPerStaffHour).toBe(25)
   })
 })

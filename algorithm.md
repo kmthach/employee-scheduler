@@ -2,7 +2,7 @@
 
 Design of the Phase 7 auto-scheduler. It generates an **editable draft** roster for one schedule (Monday–Sunday) from the schedule's staff, shift templates and transaction data.
 
-> Status: implemented in Phase 7, then revised: fixed 15 transactions-per-staff-hour staffing target, and **maximum weekly hours are a hard limit** (no overtime). Code: `src/domain/demand.ts`, `src/domain/auto-schedule.ts` (`generateSchedule`, `evaluateRoster`).
+> Status: implemented in Phase 7, then revised: a manager-configurable transactions-per-staff-hour staffing target (default 15), and **maximum weekly hours are a hard limit** (no overtime). Code: `src/domain/demand.ts`, `src/domain/auto-schedule.ts` (`generateSchedule`, `evaluateRoster`).
 
 ## 1. Approach in one paragraph
 
@@ -21,6 +21,7 @@ generateSchedule(input, options): Promise<AutoScheduleResult>
 | `staff[]` | `Staff` (`id`, `maxWeeklyHours`) | Who can work, and each person's hour cap |
 | `shifts[]` | `Shift` (`startTime`, `endTime`) | Available templates; may overlap each other |
 | `transactions[]` | `TransactionRecord` (`dayOfWeek`, `hour`, `transactionCount`) | Demand per day and clock hour |
+| `options.transactionsPerStaffHour` | Auto-schedule dialog | Transactions one employee handles per hour (default 15) |
 | `options.executor`, `maxSolveSeconds`, `signal` | | Where/how long to solve, cancellation |
 
 Output (`AutoScheduleResult`):
@@ -36,7 +37,7 @@ Existing assignments are **ignored**: the generator always builds a roster from 
 
 ## 3. Step 1 — Demand and required staffing
 
-Transaction counts are turned into a required headcount with one explicit assumption, **15 transactions per staff hour** (`TRANSACTIONS_PER_STAFF_HOUR` in `demand.ts`):
+Transaction counts are turned into a required headcount with one explicit assumption, **N transactions per staff hour**. N defaults to **15** (`DEFAULT_TRANSACTIONS_PER_STAFF_HOUR` in `demand.ts`) and the manager can change it per schedule in the Auto-schedule dialog (whole number, 1–1000; `options.transactionsPerStaffHour`). The formula with N = 15:
 
 ```
 required(day, hour) = transactions > 0 ? max(1, ceil(transactions / 15)) : 0
@@ -46,7 +47,7 @@ required(day, hour) = transactions > 0 ? max(1, ceil(transactions / 15)) : 0
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Required staff | 0 | 1 | 1 | 2 | 2 | 3 | 4 |
 
-**Why 15:** it means one transaction every 4 minutes per employee, which leaves time for work that is not a transaction (restocking, cleaning, prep, breaks) in retail and food service. It is an assumption, **not derived from the data**, and the value is illustrative. It is a single constant, fixed in code: managers do not enter it. Hours without transactions need nobody (there is no opening-hours data), and requirements do not depend on team size or on the week's total volume.
+**Why 15:** it means one transaction every 4 minutes per employee, which leaves time for work that is not a transaction (restocking, cleaning, prep, breaks) in retail and food service. It is an assumption, **not derived from the data**, and the value is illustrative. The manager can adjust it in the dialog; a lower N means more staff are required. Changing N changes required staffing and understaffing only, never the hard maximum-hours rule. Hours without transactions need nobody (there is no opening-hours data), and requirements do not depend on team size or on the week's total volume.
 
 The same metric is also shown in the Coverage view as an *evaluation* of the generated roster (`coverage.ts`).
 
@@ -120,7 +121,7 @@ A greedy approach (fill the biggest gap, give it to the least-utilised employee)
 
 ## 12. Known limitations / possible later work
 
-- No minimum staffing (e.g. always ≥ 2 at opening) and no manager-set productivity target. The 15 transactions-per-staff-hour value is an assumption (section 3).
+- No minimum staffing (e.g. always ≥ 2 at opening) and no per-hour or per-day productivity. N is an assumption supplied by the manager (section 3).
 - Three sequential solves are slower than one and may return `feasible` (good, not proven optimal) within the time budget.
 - No employee availability, skills, breaks, minimum shift counts or preferred days.
 - Fairness considers weekly hours only, not distribution of busy/unpopular shifts.

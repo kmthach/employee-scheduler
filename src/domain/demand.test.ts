@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest"
 
 import {
-  TRANSACTIONS_PER_STAFF_HOUR,
+  DEFAULT_TRANSACTIONS_PER_STAFF_HOUR,
   buildRequiredGrid,
   buildTransactionGrid,
   requiredStaffFor,
+  validateTransactionsPerStaffHour,
 } from "./demand"
 import type { TransactionRecord } from "./types"
 
@@ -57,7 +58,30 @@ describe("requiredStaffFor", () => {
     for (const [transactions, staff] of table) {
       expect(requiredStaffFor(transactions)).toBe(staff)
     }
-    expect(TRANSACTIONS_PER_STAFF_HOUR).toBe(15)
+    expect(DEFAULT_TRANSACTIONS_PER_STAFF_HOUR).toBe(15)
+  })
+
+  it("uses the given transactions per staff hour", () => {
+    expect(requiredStaffFor(25, 10)).toBe(3)
+    expect(requiredStaffFor(5, 10)).toBe(1)
+    expect(requiredStaffFor(7, 1)).toBe(7)
+    expect(requiredStaffFor(60, 30)).toBe(2)
+    expect(requiredStaffFor(0, 10)).toBe(0)
+    expect(requiredStaffFor(60)).toBe(requiredStaffFor(60, 15))
+  })
+})
+
+describe("validateTransactionsPerStaffHour", () => {
+  it("accepts whole numbers from 1 to 1000", () => {
+    for (const ok of [1, 15, 1000]) {
+      expect(validateTransactionsPerStaffHour(ok)).toBeNull()
+    }
+  })
+
+  it("rejects everything else with a message", () => {
+    for (const bad of [0, -3, 2.5, NaN, Infinity, 1001]) {
+      expect(validateTransactionsPerStaffHour(bad)).toEqual(expect.any(String))
+    }
   })
 })
 
@@ -76,5 +100,15 @@ describe("buildRequiredGrid", () => {
     // Adding unrelated demand elsewhere does not change an hour's requirement.
     const more = buildTransactionGrid([tx(0, 10, 30), tx(5, 12, 900)])
     expect(buildRequiredGrid(more)[0][10]).toBe(2)
+  })
+
+  it("applies a custom value to every hour", () => {
+    const grid = buildTransactionGrid([
+      tx(0, 9, 5),
+      tx(0, 10, 30),
+      tx(1, 9, 60),
+    ])
+    const required = buildRequiredGrid(grid, 30)
+    expect([required[0][9], required[0][10], required[1][9]]).toEqual([1, 1, 2])
   })
 })

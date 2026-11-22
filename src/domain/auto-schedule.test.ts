@@ -129,7 +129,7 @@ function compareTuples(a: number[], b: number[]) {
   return 0
 }
 
-function bruteForce(input: AutoScheduleInput) {
+function bruteForce(input: AutoScheduleInput, perStaffHour?: number) {
   const slots: AssignmentCandidate[] = []
   for (const p of input.staff.filter((s) => s.maxWeeklyHours > 0))
     for (let d = 0; d < 7; d++)
@@ -150,7 +150,7 @@ function bruteForce(input: AutoScheduleInput) {
       )
     )
     if (overlapping) continue
-    const metrics = evaluateRoster(input, chosen)
+    const metrics = evaluateRoster(input, chosen, perStaffHour)
     const overMax = input.staff.some(
       (p) => metrics.hoursByStaff[p.id] * 60 > Math.round(p.maxWeeklyHours * 60)
     )
@@ -161,11 +161,18 @@ function bruteForce(input: AutoScheduleInput) {
   return best!
 }
 
-async function expectLexicographicOptimum(input: AutoScheduleInput) {
-  const result = await run(input)
+async function expectLexicographicOptimum(
+  input: AutoScheduleInput,
+  perStaffHour?: number
+) {
+  const result = await generateSchedule(input, {
+    executor: "direct",
+    maxSolveSeconds: 2,
+    transactionsPerStaffHour: perStaffHour,
+  })
   assertValid(input, result)
-  const got = tupleOf(evaluateRoster(input, result.assignments))
-  expect(got).toEqual(bruteForce(input))
+  const got = tupleOf(evaluateRoster(input, result.assignments, perStaffHour))
+  expect(got).toEqual(bruteForce(input, perStaffHour))
   return result
 }
 
@@ -261,6 +268,19 @@ describe("maximum weekly hours", () => {
       [12, 3],
     ])
     expect(m.understaffing).toBe(4)
+  })
+
+  it("is optimal for a non-default transactions per staff hour too", async () => {
+    // 30 transactions per hour need 3 people at 10 per hour; a (max 12) and b (max 12) can each
+    // cover only one 12 h day-shift, so exactly one place per hour stays open.
+    const input: AutoScheduleInput = {
+      staff: [staff("a", 12), staff("b", 12)],
+      shifts: [shift("day", "08:00", "20:00")],
+      transactions: onDays([0], 30, [8, 19]),
+    }
+    const result = await expectLexicographicOptimum(input, 10)
+    expect(result.understaffedStaffHours).toBe(12)
+    expect(result.transactionsPerStaffHour).toBe(10)
   })
 
   it("never lets fairness worsen understaffing", async () => {
@@ -418,6 +438,79 @@ describe("generateSchedule", () => {
     const result = await run(input)
     assertValid(input, result)
     expect(result.assignments.length).toBeGreaterThan(0)
+  })
+
+  it("requirements follow the configured transactions per staff hour", async () => {
+    // 60 transactions per hour need 4 people at 15 per hour, 2 at 30, 1 at 60.
+    const input: AutoScheduleInput = {
+      staff: team(6, 40),
+      shifts: [shift("day", "08:00", "16:00")],
+      transactions: onDays([0], 60, [8, 15]),
+    }
+    const at = (n?: number) =>
+      generateSchedule(input, {
+        executor: "direct",
+        maxSolveSeconds: 2,
+        transactionsPerStaffHour: n,
+      })
+    const [d15, d30, d60] = [await at(15), await at(30), await at(60)]
+    expect([d15, d30, d60].map((r) => r.assignments.length)).toEqual([4, 2, 1])
+    expect([d15, d30, d60].map((r) => r.transactionsPerStaffHour)).toEqual([
+      15, 30, 60,
+    ])
+    for (const r of [d15, d30, d60]) {
+      expect(r.understaffedStaffHours).toBe(0)
+      assertValid(input, r)
+    }
+    // Omitting the option equals passing 15.
+    expect((await at()).assignments).toEqual(d15.assignments)
+    expect((await at()).transactionsPerStaffHour).toBe(15)
+  })
+
+  it("evaluateRoster measures understaffing against the same value", () => {
+    const input: AutoScheduleInput = {
+      staff: team(1, 40),
+      shifts: [shift("h", "09:00", "10:00")],
+      transactions: onDays([0], 60, [9, 9]),
+    }
+    const one: AssignmentCandidate[] = [
+      { staffId: "e0", shiftId: "h", dayOfWeek: 0 },
+    ]
+    expect(evaluateRoster(input, one, 15).understaffing).toBe(3)
+    expect(evaluateRoster(input, one, 30).understaffing).toBe(1)
+    expect(evaluateRoster(input, one).understaffing).toBe(3)
+  })
+
+  it("rejects an invalid transactions per staff hour", async () => {
+    const input: AutoScheduleInput = {
+      staff: team(1, 40),
+      shifts: SHIFTS,
+      transactions: transactions(uniform(30)),
+    }
+    for (const bad of [0, -1, 2.5, NaN, 5000]) {
+      await expect(
+        generateSchedule(input, {
+          executor: "direct",
+          transactionsPerStaffHour: bad,
+        })
+      ).rejects.toThrow(RangeError)
+    }
+  })
+
+  it("never exceeds maximum hours, whatever the value", async () => {
+    const input = {
+      staff: team(3, 16),
+      shifts: SHIFTS,
+      transactions: transactions(peaks),
+    }
+    for (const n of [1, 5, 15, 100]) {
+      const result = await generateSchedule(input, {
+        executor: "direct",
+        maxSolveSeconds: 2,
+        transactionsPerStaffHour: n,
+      })
+      assertValid(input, result)
+    }
   })
 
   it("needs more staff when demand grows (fixed 15 transactions per staff hour)", async () => {

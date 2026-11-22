@@ -2,6 +2,10 @@ import { create } from "zustand"
 
 import { getScheduleId, moveWeek } from "@/domain/date"
 import {
+  DEFAULT_TRANSACTIONS_PER_STAFF_HOUR,
+  validateTransactionsPerStaffHour,
+} from "@/domain/demand"
+import {
   addAssignment,
   checkAssignment,
   removeAssignment,
@@ -56,6 +60,12 @@ interface ScheduleState {
    * change to any schedule (see `markChanged`), so Undo never overwrites later manual edits.
    */
   autoScheduleUndo: { scheduleId: string; assignments: Assignment[] } | null
+  /**
+   * Transactions per employee-hour chosen in the Auto-schedule dialog, per schedule. A schedule
+   * without an entry uses the default (15). A generation input, not roster content, so it is
+   * outside draft/publish snapshots.
+   */
+  transactionsPerStaffHour: Record<string, number>
   /** Demand data per schedule. Not roster content, so it is outside draft/publish snapshots. */
   transactions: TransactionRecord[]
   transactionReports: Record<string, TransactionReport>
@@ -89,6 +99,8 @@ interface ScheduleState {
    */
   applyGeneratedAssignments: (candidates: AssignmentCandidate[]) => void
   undoAutoSchedule: () => void
+  /** Remembers the value for one week. Invalid values are ignored; never starts a draft or clears Undo. */
+  setTransactionsPerStaffHour: (scheduleId: string, value: number) => void
   /** Publishes the viewed week's draft. Blocked (state unchanged) while assignments overlap or employees exceed their maximum hours. */
   publishSchedule: () => PublishValidation
   /** Throws away pending changes to a published schedule, restoring its published content. */
@@ -157,6 +169,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
   assignments: [],
   publishedSnapshots: {},
   autoScheduleUndo: null,
+  transactionsPerStaffHour: {},
   transactions: [],
   transactionReports: {},
 
@@ -378,6 +391,18 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
       }
     }),
 
+  setTransactionsPerStaffHour: (scheduleId, value) =>
+    set((s) =>
+      validateTransactionsPerStaffHour(value) === null
+        ? {
+            transactionsPerStaffHour: {
+              ...s.transactionsPerStaffHour,
+              [scheduleId]: value,
+            },
+          }
+        : s
+    ),
+
   saveTransactions: (records, report) =>
     set((s) => {
       const id = s.currentScheduleId
@@ -437,3 +462,14 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
       }
     }),
 }))
+
+/** Transactions per employee-hour for a week: its saved value, or the default (15). */
+export function getTransactionsPerStaffHour(
+  state: Pick<ScheduleState, "transactionsPerStaffHour">,
+  scheduleId: string
+): number {
+  return (
+    state.transactionsPerStaffHour[scheduleId] ??
+    DEFAULT_TRANSACTIONS_PER_STAFF_HOUR
+  )
+}

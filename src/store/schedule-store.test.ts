@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 
 import type { Assignment, Schedule, Shift, Staff } from "@/domain/types"
 
-import { useScheduleStore } from "./schedule-store"
+import { getTransactionsPerStaffHour, useScheduleStore } from "./schedule-store"
 
 const sched = (id: string, status: Schedule["status"] = "draft"): Schedule => ({
   id,
@@ -57,6 +57,7 @@ beforeEach(() => {
     ],
     publishedSnapshots: {},
     autoScheduleUndo: null,
+    transactionsPerStaffHour: {},
     transactions: [],
     transactionReports: {},
   })
@@ -489,5 +490,40 @@ describe("auto-schedule apply and undo", () => {
     useScheduleStore.setState({ currentScheduleId: "Z" })
     useScheduleStore.getState().applyGeneratedAssignments(generated)
     expect(useScheduleStore.getState().autoScheduleUndo).toBeNull()
+  })
+})
+
+describe("transactions per staff hour setting", () => {
+  it("defaults to 15 for a week without a saved value", () => {
+    expect(getTransactionsPerStaffHour(useScheduleStore.getState(), "A")).toBe(
+      15
+    )
+  })
+
+  it("is saved per week and weeks stay independent", () => {
+    useScheduleStore.getState().setTransactionsPerStaffHour("A", 20)
+    const state = useScheduleStore.getState()
+    expect(getTransactionsPerStaffHour(state, "A")).toBe(20)
+    expect(getTransactionsPerStaffHour(state, "B")).toBe(15)
+  })
+
+  it("ignores invalid values", () => {
+    const store = useScheduleStore.getState()
+    for (const bad of [0, -3, 2.5, NaN, 1001])
+      store.setTransactionsPerStaffHour("A", bad)
+    expect(getTransactionsPerStaffHour(useScheduleStore.getState(), "A")).toBe(
+      15
+    )
+  })
+
+  it("never starts a draft or clears Undo", () => {
+    useScheduleStore.setState({
+      schedules: [sched("A", "published"), sched("B")],
+      autoScheduleUndo: { scheduleId: "A", assignments: [] },
+    })
+    useScheduleStore.getState().setTransactionsPerStaffHour("A", 10)
+    const state = useScheduleStore.getState()
+    expect(state.schedules.find((x) => x.id === "A")?.status).toBe("published")
+    expect(state.autoScheduleUndo).not.toBeNull()
   })
 })

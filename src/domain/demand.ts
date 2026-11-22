@@ -24,21 +24,42 @@ export function buildTransactionGrid(
 }
 
 /**
- * Assumed staff productivity: one employee handles about 15 transactions per hour, i.e. one
+ * Default staff productivity: one employee handles about 15 transactions per hour, i.e. one
  * every 4 minutes. That leaves room for work that is not a transaction (restocking, cleaning,
- * prep, breaks) in retail and food service. It is an explicit assumption, not derived from the
- * data and not configurable in the UI; change it here only.
+ * prep, breaks) in retail and food service. It is an assumption, not derived from the data; the
+ * manager can change it per schedule in the Auto-schedule dialog.
  */
-export const TRANSACTIONS_PER_STAFF_HOUR = 15
+export const DEFAULT_TRANSACTIONS_PER_STAFF_HOUR = 15
+
+export const MAX_TRANSACTIONS_PER_STAFF_HOUR = 1000
+
+/** Error message for an unusable value, or null when it is a whole number from 1 to 1000. */
+export function validateTransactionsPerStaffHour(value: number): string | null {
+  if (!Number.isInteger(value) || value < 1) {
+    return "Enter a whole number of at least 1."
+  }
+  if (value > MAX_TRANSACTIONS_PER_STAFF_HOUR) {
+    return `Enter ${MAX_TRANSACTIONS_PER_STAFF_HOUR} or less.`
+  }
+  return null
+}
 
 /** Staff an hour needs: at least one when there are transactions, none otherwise. */
-export function requiredStaffFor(transactions: number): number {
+export function requiredStaffFor(
+  transactions: number,
+  perStaffHour: number = DEFAULT_TRANSACTIONS_PER_STAFF_HOUR
+): number {
   return transactions > 0
-    ? Math.max(1, Math.ceil(transactions / TRANSACTIONS_PER_STAFF_HOUR))
+    ? Math.max(1, Math.ceil(transactions / perStaffHour))
     : 0
 }
 
 /** Required staff per day (Monday = 0) and clock hour. */
-export function buildRequiredGrid(txGrid: number[][]): number[][] {
-  return txGrid.map((day) => day.map(requiredStaffFor))
+export function buildRequiredGrid(
+  txGrid: number[][],
+  perStaffHour: number = DEFAULT_TRANSACTIONS_PER_STAFF_HOUR
+): number[][] {
+  return txGrid.map((day) =>
+    day.map((tx) => requiredStaffFor(tx, perStaffHour))
+  )
 }

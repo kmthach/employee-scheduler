@@ -4,7 +4,10 @@ import { generateSchedule } from "@/domain/auto-schedule"
 import { summarizeAutoSchedule } from "@/domain/auto-schedule-report"
 import type { AutoScheduleSummary } from "@/domain/auto-schedule-report"
 import { filterBySchedule } from "@/domain/schedule-data"
-import { useScheduleStore } from "@/store/schedule-store"
+import {
+  getTransactionsPerStaffHour,
+  useScheduleStore,
+} from "@/store/schedule-store"
 
 export type AutoScheduleStatus = "idle" | "running" | "error"
 
@@ -20,9 +23,17 @@ export function useAutoSchedule() {
   const [state, setState] = useState<AutoScheduleState>({ status: "idle" })
   const controller = useRef<AbortController | null>(null)
 
-  const run = useCallback(async () => {
+  /** Generates for the viewed week; `perStaffHour` is remembered for it (Retry reuses the saved value). */
+  const run = useCallback(async (perStaffHour?: number) => {
     const store = useScheduleStore.getState()
     const scheduleId = store.currentScheduleId
+    if (perStaffHour !== undefined) {
+      store.setTransactionsPerStaffHour(scheduleId, perStaffHour)
+    }
+    const transactionsPerStaffHour = getTransactionsPerStaffHour(
+      useScheduleStore.getState(),
+      scheduleId
+    )
     if (!window.crossOriginIsolated) {
       setState({
         status: "error",
@@ -41,7 +52,7 @@ export function useAutoSchedule() {
           shifts: filterBySchedule(store.shifts, scheduleId),
           transactions: filterBySchedule(store.transactions, scheduleId),
         },
-        { executor: "worker", signal: abort.signal }
+        { transactionsPerStaffHour, executor: "worker", signal: abort.signal }
       )
       // Dropped if the manager cancelled or moved to another week while solving.
       const current = useScheduleStore.getState()

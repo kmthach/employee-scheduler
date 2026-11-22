@@ -1,6 +1,11 @@
 import type { AssignmentCandidate } from "./assignment"
 import { staffedHours } from "./coverage"
-import { buildRequiredGrid, buildTransactionGrid } from "./demand"
+import {
+  DEFAULT_TRANSACTIONS_PER_STAFF_HOUR,
+  buildRequiredGrid,
+  buildTransactionGrid,
+  validateTransactionsPerStaffHour,
+} from "./demand"
 import { shiftDurationHours, timesOverlap } from "./time"
 import type { DayOfWeek, Shift, Staff, TransactionRecord } from "./types"
 
@@ -31,6 +36,8 @@ export interface AutoScheduleInput {
 }
 
 export interface AutoScheduleOptions {
+  /** Transactions one employee handles per hour (whole number, 1–1000). Default: 15. */
+  transactionsPerStaffHour?: number
   /** "worker" keeps the UI responsive (default); "direct" blocks but is simpler in tests. */
   executor?: "worker" | "direct"
   /** Solve time budget, split across the stages. Also the deterministic time limit. */
@@ -41,7 +48,7 @@ export interface AutoScheduleOptions {
 export interface Shortfall {
   dayOfWeek: DayOfWeek
   hour: number
-  /** Staff the hour needs at 15 transactions per staff hour. */
+  /** Staff the hour needs at the configured transactions per staff hour. */
   required: number
   staffed: number
 }
@@ -70,6 +77,8 @@ export interface RosterMetrics {
 export interface AutoScheduleResult extends RosterMetrics {
   /** IDs and scheduleId are added by the caller. */
   assignments: AssignmentCandidate[]
+  /** The value the staffing requirement was based on. */
+  transactionsPerStaffHour: number
   /** "optimal" = every stage proven best; "feasible" = a time limit was hit, still valid. */
   status: "optimal" | "feasible"
   understaffedStaffHours: number
@@ -82,9 +91,9 @@ const minutesOf = (s: Shift) => Math.round(shiftDurationHours(s) * 60)
 const eligibleStaff = (staff: Staff[]) =>
   staff.filter((s) => s.maxWeeklyHours > 0)
 
-/** Staff required per (day, hour): 15 transactions per staff hour (see `demand.ts`). */
-const requiredGrid = (input: AutoScheduleInput) =>
-  buildRequiredGrid(buildTransactionGrid(input.transactions))
+/** Staff required per (day, hour) at `perStaffHour` transactions per staff hour (see `demand.ts`). */
+const requiredGrid = (input: AutoScheduleInput, perStaffHour: number) =>
+  buildRequiredGrid(buildTransactionGrid(input.transactions), perStaffHour)
 
 /**
  * Measures a roster: understaffing, total hours and fairness exactly as the solver defines them.
@@ -92,11 +101,12 @@ const requiredGrid = (input: AutoScheduleInput) =>
  */
 export function evaluateRoster(
   input: AutoScheduleInput,
-  assignments: AssignmentCandidate[]
+  assignments: AssignmentCandidate[],
+  perStaffHour: number = DEFAULT_TRANSACTIONS_PER_STAFF_HOUR
 ): RosterMetrics {
   const shiftById = new Map(input.shifts.map((s) => [s.id, s]))
   const txGrid = buildTransactionGrid(input.transactions)
-  const required = requiredGrid(input)
+  const required = requiredGrid(input, perStaffHour)
 
   const working = Array.from({ length: 7 }, () =>
     Array.from({ length: 24 }, () => new Set<string>())
@@ -163,10 +173,12 @@ export function evaluateRoster(
 /** Result for inputs with nothing to schedule: no assignments and nothing required. */
 function emptyResult(
   input: AutoScheduleInput,
+  perStaffHour: number,
   notes: string[]
 ): AutoScheduleResult {
   return {
-    ...evaluateRoster(input, []),
+    ...evaluateRoster(input, [], perStaffHour),
+    transactionsPerStaffHour: perStaffHour,
     shortfalls: [],
     understaffing: 0,
     unstaffedHours: [],
@@ -181,6 +193,12 @@ export async function generateSchedule(
   input: AutoScheduleInput,
   options: AutoScheduleOptions = {}
 ): Promise<AutoScheduleResult> {
+  const perStaffHour =
+    options.transactionsPerStaffHour ?? DEFAULT_TRANSACTIONS_PER_STAFF_HOUR
+  const invalid = validateTransactionsPerStaffHour(perStaffHour)
+  if (invalid) {
+    throw new RangeError(`Invalid transactions per staff hour: ${invalid}`)
+  }
   const totalTx = buildTransactionGrid(input.transactions)
     .flat()
     .reduce((n, v) => n + v, 0)
@@ -188,18 +206,20 @@ export async function generateSchedule(
   const shifts = input.shifts.filter((s) => shiftDurationHours(s) > 0)
 
   if (totalTx <= 0) {
-    return emptyResult(input, ["No transaction demand to schedule for."])
+    return emptyResult(input, perStaffHour, [
+      "No transaction demand to schedule for.",
+    ])
   }
   if (people.length === 0) {
-    return emptyResult(input, [
+    return emptyResult(input, perStaffHour, [
       "No employees with maximum weekly hours above 0.",
     ])
   }
   if (shifts.length === 0) {
-    return emptyResult(input, ["No valid shift templates."])
+    return emptyResult(input, perStaffHour, ["No valid shift templates."])
   }
 
-  const required = requiredGrid(input)
+  const required = requiredGrid(input, perStaffHour)
 
   // Loaded lazily: keeps the WASM runtime out of the main bundle and out of trivial runs.
   const { CpModel, CpSat, LinearExpr } = await import("cp-sat-wasm")
@@ -357,7 +377,7 @@ export async function generateSchedule(
     }
   })
 
-  const metrics = evaluateRoster(input, assignments)
+  const metrics = evaluateRoster(input, assignments, perStaffHour)
   const understaffedStaffHours = metrics.understaffing
   const notes: string[] = []
   if (understaffedStaffHours > 0) {
@@ -375,6 +395,7 @@ export async function generateSchedule(
   return {
     ...metrics,
     assignments,
+    transactionsPerStaffHour: perStaffHour,
     status: allOptimal ? "optimal" : "feasible",
     understaffedStaffHours,
     notes,
