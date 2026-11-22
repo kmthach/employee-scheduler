@@ -177,7 +177,7 @@ Surface warnings for:
 - Understaffed hours relative to estimated demand.
 - Invalid or overlapping assignments.
 
-Over-maximum hours should produce a warning rather than silently blocking an assignment.
+Assignments that would exceed an employee's maximum weekly hours are blocked with a clear explanation. (Deliberate change from the original wording, which only warned; edits to shift templates or maximum hours can still leave an employee over in a draft, which is highlighted and blocks publishing.)
 
 Overlapping assignments for the same employee should be prevented, with a clear explanation.
 

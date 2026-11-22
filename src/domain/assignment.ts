@@ -1,5 +1,5 @@
-import { getAssignedHours, getHoursStatus } from "./hours"
-import { timesOverlap } from "./time"
+import { exceedsMax, getAssignedHours, getHoursStatus } from "./hours"
+import { shiftDurationHours, timesOverlap } from "./time"
 import type { Assignment, DayOfWeek, Shift, Staff } from "./types"
 
 export interface AssignmentCandidate {
@@ -18,13 +18,17 @@ export type AssignmentCheck =
         | "wrong-schedule"
         | "overlap"
         | "duplicate"
+        | "over-max"
       conflictShiftId?: string
+      /** For "over-max": the employee's hours with this assignment, and their maximum. */
+      overMax?: { staffName: string; hours: number; maxWeeklyHours: number }
     }
 
 /**
- * Checks ERD rules for an assignment: staff and shift exist in the same schedule and the
- * employee has no overlapping assignment that day. Exceeding max weekly hours is NOT checked here
- * (it is only a warning). `ignoreAssignmentId` skips the assignment being changed.
+ * Checks the rules for an assignment: staff and shift exist in the same schedule, the employee
+ * has no overlapping assignment that day, and the assignment would not take them above their
+ * maximum weekly hours. `ignoreAssignmentId` skips the assignment being changed (its hours are
+ * not counted either).
  */
 export function checkAssignment(
   data: { staff: Staff[]; shifts: Shift[]; assignments: Assignment[] },
@@ -52,6 +56,21 @@ export function checkAssignment(
       return { ok: false, reason: "overlap", conflictShiftId: other.id }
     }
   }
+
+  const others = data.assignments.filter((a) => a.id !== ignoreAssignmentId)
+  const hours =
+    getAssignedHours(person.id, others, data.shifts) + shiftDurationHours(shift)
+  if (exceedsMax(hours, person.maxWeeklyHours)) {
+    return {
+      ok: false,
+      reason: "over-max",
+      overMax: {
+        staffName: person.name,
+        hours,
+        maxWeeklyHours: person.maxWeeklyHours,
+      },
+    }
+  }
   return { ok: true }
 }
 
@@ -67,6 +86,10 @@ export function describeBlock(check: AssignmentCheck, shifts: Shift[]): string {
     }
     case "duplicate":
       return "Already assigned"
+    case "over-max":
+      return check.overMax
+        ? `Would exceed max hours: ${check.overMax.staffName} ${check.overMax.hours}h of ${check.overMax.maxWeeklyHours}h`
+        : "Would exceed max hours"
     case "missing-staff":
       return "Employee no longer exists"
     case "missing-shift":
@@ -100,7 +123,7 @@ export function removeAssignment(
   return assignments.filter((a) => a.id !== id)
 }
 
-/** Employees whose assigned hours exceed their maximum (a warning list, not a restriction). */
+/** Employees whose assigned hours exceed their maximum (only possible after an edit; blocks publishing). */
 export function getOverMaxStaff(
   staff: Staff[],
   assignments: Assignment[],

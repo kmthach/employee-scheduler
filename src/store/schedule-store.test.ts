@@ -153,14 +153,37 @@ describe("assignment actions", () => {
     expect(r.ok).toBe(false)
   })
 
-  it("assignShift is allowed beyond max weekly hours", () => {
+  it("assignShift blocks going over max weekly hours and leaves state unchanged", () => {
+    // s1 already has am + pm (16 h); a maximum of 16 h leaves no room for another shift.
     useScheduleStore.setState({
-      staff: [{ ...staff("s1", "A"), maxWeeklyHours: 1 }, staff("s2", "B")],
+      staff: [{ ...staff("s1", "A"), maxWeeklyHours: 16 }, staff("s2", "B")],
     })
+    const before = useScheduleStore.getState().assignments
     const r = useScheduleStore
       .getState()
       .assignShift({ staffId: "s1", shiftId: "am", dayOfWeek: 2 })
-    expect(r.ok).toBe(true)
+    expect(r).toMatchObject({ ok: false, reason: "over-max" })
+    expect(useScheduleStore.getState().assignments).toBe(before)
+  })
+
+  it("restoreAssignment is also blocked when it would exceed the maximum", () => {
+    useScheduleStore.setState({
+      staff: [{ ...staff("s1", "A"), maxWeeklyHours: 16 }, staff("s2", "B")],
+    })
+    const r = useScheduleStore
+      .getState()
+      .restoreAssignment({ staffId: "s1", shiftId: "am", dayOfWeek: 3 })
+    expect(r).toMatchObject({ ok: false, reason: "over-max" })
+  })
+
+  it("changeAssignmentShift only counts the new shift, not the one it replaces", () => {
+    useScheduleStore.setState({
+      staff: [{ ...staff("s1", "A"), maxWeeklyHours: 8 }, staff("s2", "B")],
+      assignments: [asg("1", "A", "s1", "am"), asg("3", "B", "s2", "bm")],
+    })
+    expect(
+      useScheduleStore.getState().changeAssignmentShift("1", "pm").ok
+    ).toBe(true)
   })
 
   it("changeAssignmentShift ignores itself but blocks real overlaps", () => {
@@ -344,13 +367,17 @@ describe("draft and published status", () => {
     expect(status()).toBe("draft")
   })
 
-  it("publish is allowed when an employee exceeds max weekly hours", () => {
+  it("publish is blocked while an employee exceeds max weekly hours", () => {
+    // e.g. after lowering the maximum or lengthening a shift template.
     useScheduleStore.setState({
       staff: [{ ...staff("s1", "A"), maxWeeklyHours: 1 }, staff("s2", "B")],
     })
     const r = useScheduleStore.getState().publishSchedule()
-    expect(r.ok).toBe(true)
+    expect(r.ok).toBe(false)
     expect(r.overMax).toHaveLength(1)
+    expect(
+      useScheduleStore.getState().schedules.find((x) => x.id === "A")?.status
+    ).toBe("draft")
   })
 })
 

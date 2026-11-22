@@ -1,64 +1,61 @@
 import type { AutoScheduleResult } from "./auto-schedule"
-import type { DayOfWeek, Staff } from "./types"
+import type { DayOfWeek } from "./types"
 
-export interface UnstaffedRange {
+export interface UnderstaffedRange {
   dayOfWeek: DayOfWeek
   /** Clock hours, e.g. start 21 and end 23 means 21:00–23:00. */
   startHour: number
   endHour: number
-}
-
-export interface OverMaxLine {
-  name: string
-  hours: number
-  maxWeeklyHours: number
+  /** Staff these hours need (15 transactions per staff hour) and what the roster has. */
+  required: number
+  staffed: number
 }
 
 export interface AutoScheduleSummary {
   assignmentCount: number
-  /** Consecutive hours with transactions but no staff, merged per day. */
-  unstaffed: UnstaffedRange[]
-  /** Employees scheduled over their maximum weekly hours to cover hours with transactions. */
-  overMax: OverMaxLine[]
+  /** Consecutive hours with the same shortfall, merged per day. */
+  understaffed: UnderstaffedRange[]
+  understaffedStaffHours: number
   notes: string[]
 }
 
 const pad = (n: number) => String(n).padStart(2, "0")
-export const formatRange = (r: UnstaffedRange) =>
-  `${pad(r.startHour)}:00–${pad(r.endHour)}:00`
+export const formatRange = (
+  r: Pick<UnderstaffedRange, "startHour" | "endHour">
+) => `${pad(r.startHour)}:00–${pad(r.endHour)}:00`
 
-/**
- * User-facing summary of a generated roster. Understaffing means "transactions but nobody
- * staffed" only: no productivity target is assumed.
- */
+/** Manager-facing summary of a generated roster. Maximum hours are never exceeded. */
 export function summarizeAutoSchedule(
-  result: AutoScheduleResult,
-  staff: Pick<Staff, "id" | "name">[] = []
+  result: AutoScheduleResult
 ): AutoScheduleSummary {
-  const sorted = [...result.unstaffedHours].sort(
+  const sorted = [...result.shortfalls].sort(
     (a, b) => a.dayOfWeek - b.dayOfWeek || a.hour - b.hour
   )
-  const unstaffed: UnstaffedRange[] = []
-  for (const u of sorted) {
-    const last = unstaffed[unstaffed.length - 1]
-    if (last && last.dayOfWeek === u.dayOfWeek && last.endHour === u.hour) {
-      last.endHour = u.hour + 1
+  const understaffed: UnderstaffedRange[] = []
+  for (const s of sorted) {
+    const last = understaffed[understaffed.length - 1]
+    if (
+      last &&
+      last.dayOfWeek === s.dayOfWeek &&
+      last.endHour === s.hour &&
+      last.required === s.required &&
+      last.staffed === s.staffed
+    ) {
+      last.endHour = s.hour + 1
     } else {
-      unstaffed.push({
-        dayOfWeek: u.dayOfWeek,
-        startHour: u.hour,
-        endHour: u.hour + 1,
+      understaffed.push({
+        dayOfWeek: s.dayOfWeek,
+        startHour: s.hour,
+        endHour: s.hour + 1,
+        required: s.required,
+        staffed: s.staffed,
       })
     }
   }
   return {
     assignmentCount: result.assignments.length,
-    unstaffed,
-    overMax: result.overMaxStaff.map((o) => ({
-      name: staff.find((s) => s.id === o.staffId)?.name ?? o.staffId,
-      hours: o.hours,
-      maxWeeklyHours: o.maxWeeklyHours,
-    })),
+    understaffed,
+    understaffedStaffHours: result.understaffedStaffHours,
     notes: result.notes,
   }
 }

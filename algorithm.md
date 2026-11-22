@@ -2,11 +2,11 @@
 
 Design of the Phase 7 auto-scheduler. It generates an **editable draft** roster for one schedule (Monday–Sunday) from the schedule's staff, shift templates and transaction data.
 
-> Status: implemented in Phase 7, then revised: no hardcoded transactions-per-staff-hour target, and maximum weekly hours are a soft limit. The code lives in `src/domain/demand.ts` and `src/domain/auto-schedule.ts` (`generateSchedule`). Phase 8 wires it into the UI.
+> Status: implemented in Phase 7, then revised: fixed 15 transactions-per-staff-hour staffing target, and **maximum weekly hours are a hard limit** (no overtime). Code: `src/domain/demand.ts`, `src/domain/auto-schedule.ts` (`generateSchedule`, `evaluateRoster`).
 
 ## 1. Approach in one paragraph
 
-Scheduling is modelled as a small **constraint optimization problem** and solved with Google OR-Tools **CP-SAT** (`cp-sat-wasm`, WebAssembly, runs locally in the browser or Node). We decide, for every employee, day and shift template, whether that employee works it (a yes/no variable). Hard rules (no overlapping assignments) are constraints that can never be broken. Maximum weekly hours are a *soft* limit: exceeding it is allowed but minimised. Everything we merely *prefer* (put more people on busier hours, keep idle hours empty, spread hours fairly) is a weighted objective the solver optimises. **No productivity target is assumed**: transaction counts are only relative demand weights. The solver returns the assignment set with the lowest total penalty. A feasible answer always exists (an empty roster), so the solver never fails; when capacity is insufficient the generator uses as little overtime as possible to keep every hour with transactions staffed, and reports who is over their maximum.
+Scheduling is a small **constraint optimization problem** solved with Google OR-Tools **CP-SAT** (`cp-sat-wasm`, WebAssembly). For every employee, day and shift template there is a yes/no variable. Two rules are hard and never broken: **no overlapping assignments** and **no employee above their maximum weekly hours** (no overtime). The solver then optimizes **one goal at a time in strict priority order** (section 6): minimize understaffing, then avoid needless hours, then fairness. A feasible answer always exists (the empty roster), so the solver does not fail; when capacity is short, the remaining shortfall is reported as understaffing rather than bought with overtime.
 
 ## 2. Inputs and outputs
 
@@ -21,7 +21,6 @@ generateSchedule(input, options): Promise<AutoScheduleResult>
 | `staff[]` | `Staff` (`id`, `maxWeeklyHours`) | Who can work, and each person's hour cap |
 | `shifts[]` | `Shift` (`startTime`, `endTime`) | Available templates; may overlap each other |
 | `transactions[]` | `TransactionRecord` (`dayOfWeek`, `hour`, `transactionCount`) | Demand per day and clock hour |
-| `options.transactionsPerStaffHour` | **none by default** | Optional explicit target; only used if a caller sets it (no UI does) |
 | `options.executor`, `maxSolveSeconds`, `signal` | | Where/how long to solve, cancellation |
 
 Output (`AutoScheduleResult`):
@@ -29,38 +28,27 @@ Output (`AutoScheduleResult`):
 - `assignments`: `{ staffId, shiftId, dayOfWeek }[]`. IDs and `scheduleId` are added by the caller (Phase 8), the same way manual assignments get them.
 - `status`: `optimal` (proven best) or `feasible` (time limit hit; best found, still valid).
 - `unstaffedHours`: `{ dayOfWeek, hour, transactions }[]` for hours with transactions but nobody staffed (same marker as Coverage "No staff").
-- `shortfalls` and `surplusStaffHours`: populated only in explicit-target mode (otherwise empty / 0).
-- `overMaxStaff`: employees scheduled above their maximum (`hours`, `maxWeeklyHours`, `overHours`).
+- `understaffedStaffHours`, `fairnessSpread`, `assignedMinutes`.
+- `shortfalls`: `{ dayOfWeek, hour, required, staffed }[]` for hours below the required staffing.
 - `hoursByStaff` and `notes` (e.g. "No transaction data").
 
 Existing assignments are **ignored**: the generator always builds a roster from scratch. The UI asks before replacing them and offers Undo (Phase 8).
 
-## 3. Step 1 — Demand as a relative signal
+## 3. Step 1 — Demand and required staffing
 
-The assignment gives transaction counts but **no productivity target**, so the scheduler does not convert them into a required headcount. Counts are used only to compare hours with each other:
+Transaction counts are turned into a required headcount with one explicit assumption, **15 transactions per staff hour** (`TRANSACTIONS_PER_STAFF_HOUR` in `demand.ts`):
 
 ```
-share(day, hour) = transactions(day, hour) / total transactions in the week
+required(day, hour) = transactions > 0 ? max(1, ceil(transactions / 15)) : 0
 ```
 
-Missing cells count as 0. Only shares matter, so doubling every count produces the same roster (tested).
+| Transactions in the hour | 0 | 5 | 15 | 16 | 30 | 45 | 60 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Required staff | 0 | 1 | 1 | 2 | 2 | 3 | 4 |
 
-**Assumptions (and nothing else):**
+**Why 15:** it means one transaction every 4 minutes per employee, which leaves time for work that is not a transaction (restocking, cleaning, prep, breaks) in retail and food service. It is an assumption, **not derived from the data**, and the value is illustrative. It is a single constant, fixed in code: managers do not enter it. Hours without transactions need nobody (there is no opening-hours data), and requirements do not depend on team size or on the week's total volume.
 
-1. More transactions in an hour means more need for staff in that hour.
-2. Each extra person in the same hour helps less than the one before (diminishing returns), so the schedule does not pile everyone onto the single busiest hour.
-3. Each employee's maximum weekly hours is the capacity budget. It is a soft limit: overtime is allowed but costly (section 6).
-4. An hour with no transactions has no demand value.
-
-**Objective model.** The k-th employee staffed in an hour earns a gain `DEMAND_SCALE · share / k`. These harmonic gains are the discrete form of maximising `Σ share · ln(staffed)`: when capacity is scarce, the optimum allocates staff in proportion to demand. This is a proportional allocation, not a ratio target, and it contains no cutoff such as "enough staff at N transactions".
-
-**Deliberately omitted:** a labor-cost or overstaffing penalty. Any such per-hour cost would stop adding staff when `share / k` drops below it, i.e. at `k ≈ transactions / cost`, which is a hidden transactions-per-staff-hour target. Capacity is therefore the only limit.
-
-**Consequence:** when capacity exceeds what is needed, employees end near the same percentage of their maximum hours, with the extra people stacked on the busiest hours. If a manager wants fewer hours, they lower maximum hours or edit the draft.
-
-**Evaluation only:** transactions per staff hour is reported by the Coverage view (`coverage.ts`) as a metric for the generated roster. It never drives the algorithm.
-
-**Optional explicit target (not used by the UI).** A caller may pass `options.transactionsPerStaffHour`. Only then is `required = ceil(transactions / target)` computed and a shortfall/surplus objective used (`shortfalls`, `surplusStaffHours` are populated). A manager-chosen target with a dialog was tried and reverted: the ratio-free model is simpler and needs no number the data cannot justify.
+The same metric is also shown in the Coverage view as an *evaluation* of the generated roster (`coverage.ts`).
 
 ## 4. Step 2 — Decision variables
 
@@ -72,7 +60,7 @@ x[e][d][s] ∈ {0, 1}      1 = employee e works shift s on day d
 
 Shifts with invalid times or zero length are skipped. Duration is kept in **minutes** so odd lengths (e.g. 07:30–15:15) are exact.
 
-Helper quantities (linear expressions, not extra decisions):
+Helper quantities (linear expressions, not extra decisions; employees with a maximum of 0 are excluded entirely):
 
 - `minutes[e] = Σ x[e][d][s] · duration(s)` — weekly minutes for *e*.
 - `staffed[d][h] = Σ x[e][d][s]` over all *e* and every shift *s* that touches clock hour *h*. A shift touches hour *h* if it starts before *h+1* and ends after *h*, the same definition as `staffedHours()` in `coverage.ts`, so generated rosters are measured exactly like the Coverage view.
@@ -82,48 +70,25 @@ Helper quantities (linear expressions, not extra decisions):
 1. **No overlapping assignments.** For each employee and day, any two shift templates that overlap (`timesOverlap()` in `time.ts`; touching boundaries such as 12:00/12:00 do *not* overlap) can have at most one chosen: `x[e][d][a] + x[e][d][b] ≤ 1`. This is the same rule manual assignment uses, so the output can always be published. Two different templates may overlap each other; one *employee* just can't work both.
 2. **No duplicates.** One variable per (employee, day, shift) makes a duplicate impossible.
 
-**Maximum weekly hours are not a hard constraint.** The project rule is that maximum hours are a warning, not a restriction, and a hard cap made the generator leave hours with transactions empty whenever total capacity was short. Instead each employee has an overtime variable `over[e] ≥ minutes[e] − maxWeeklyHours[e]·60` (≥ 0) that is penalised in the objective. Overtime is therefore *acceptable but minimised*. Overlaps stay hard, so the draft can always be published; over-max employees appear in the existing warning.
+3. **Maximum weekly hours.** `minutes[e] ≤ round(maxWeeklyHours[e] · 60)` for every employee, so nobody is ever scheduled into overtime; exactly the maximum is allowed. Employees with a maximum of 0 are never scheduled. The same rule blocks manual assignments (`checkAssignment`, reason `over-max`), and a draft that is over the maximum after a shift-template or maximum-hours edit cannot be published.
 
-## 6. Step 4 — Soft goals (the objective)
+## 6. Step 4 — Goals, optimized in strict order (lexicographic)
 
-CP-SAT optimises one weighted objective (default mode).
+All values are integers.
 
-**a) Demand (maximise).** For every (day, hour) with transactions, boolean `covered[k]` (k = 1..number of employees) with `Σ covered[k] ≤ staffed(day, hour)`, each worth `DEMAND_SCALE · share / k`. Decreasing gains mean the solver always fills lower k first. Busier hours earn larger gains, so they attract more people.
+- **Understaffing** `U = Σ max(0, required − staffed)` over every hour (each period is one hour, so this is also staff-hours of understaffing), in whole person-hours (shortfall variables `shortfall ≥ required − staffed`).
+- **Total hours** `W = Σ minutes[e]`: a "no needless hours" step.
+- **Fairness** `F = max(util) − min(util)` where `util[e] = floor(1000 · minutes[e] / maxMinutes[e])`, the share of each person's *own* maximum in permille (at most 1000 because of the hard cap). A 20 h and a 40 h employee are compared proportionally. Spread is the simplest measure that is linear in the model.
 
-**b) Idle hours (minimise).** A tiny penalty (`IDLE_WEIGHT`) per staffed employee-hour with zero transactions, so nobody is scheduled into hours with no demand unless a shift template forces it.
-
-**c) Fairness (utilization spread).** Measured against each person's *own* capacity, so a 20 h part-timer and a 40 h full-timer are treated proportionally:
-
-```
-util[e]  = floor(1000 · minutes[e] / (maxWeeklyHours[e] · 60))     (permille, via integer division)
-spread   = max(util[e]) − min(util[e])
-```
-
-```
-maximise  Σ demand gains  −  IDLE_WEIGHT · idle staff-hours  −  FAIRNESS_WEIGHT · spread
-```
-
-`FAIRNESS_WEIGHT` (default 100) is a tuning constant: it trades coverage against evenness relative to the normalised demand gains. It is not a productivity threshold. The constants are named in `auto-schedule.ts` and the tests pin the intended behaviour.
-
-**d) Overtime (minimise).** `OVERTIME_WEIGHT_PER_HOUR · Σ over[e]/60`, plus a small `OVERTIME_SPREAD_WEIGHT · max over[e]` so overtime is spread across employees rather than piled on one. Fairness (c) is computed on hours *excluding* overtime, so overtime does not distort the spread.
-
-**e) Covered-hour bonus.** The first employee in an hour with transactions earns a flat `COVERED_HOUR_BONUS` on top of the proportional gain. Weight ordering (default mode):
-
-```
-COVERED_HOUR_BONUS (50,000,000)  ≫  OVERTIME_WEIGHT_PER_HOUR (600,000)  >  DEMAND_SCALE / 2 (500,000)
-```
-
-so leaving an hour with transactions empty is worse than almost any amount of overtime, while one extra overtime hour costs more than the best possible gain from adding a 2nd or later person to an already staffed hour. In short: **overtime is used only to staff hours that would otherwise have nobody**, never to pile extra staff onto busy hours. These are ordering constants, not productivity thresholds.
-
-**Explicit-target mode** (opt-in, domain only) uses `10000 · Σ shortfall + 300 · Σ surplus + 1 · spread`, minimised, with overtime at `TARGET_OVERTIME_WEIGHT_PER_HOUR` = 1,200 (between a surplus hour and a shortfall hour).
+**Stages:** 1. minimize `U`; add `U ≤ best`. 2. minimize `W`; add `W ≤ best`. 3. minimize `F`. A later stage can never worsen an earlier one because earlier optima are constraints, and there are no weights to tune. Step 2 exists because fairness alone would add shifts nobody needs just to even out utilization; with it, fairness only redistributes the hours the first goal requires. Each stage is warm-started from the previous solution.
 
 ## 7. Step 5 — Solve and decode
 
-- Solver: `CpSat.solve(model, { executor, numWorkers: 1, randomSeed: 1, maxDeterministicTime, maxTimeInSeconds })`.
+- Solver: one model, solved once per stage with `CpSat.solve(model, { executor, numWorkers: 1, randomSeed: 1, maxDeterministicTime, maxTimeInSeconds })`. The time budget (default 5 s) is split 50 / 25 / 25 % across the three stages. A stage cut short by its limit still enforces the value it found and the result is `feasible`.
 - **Deterministic:** one worker, fixed seed and a machine-independent deterministic time limit give the same roster for the same input (verified in the spike: three identical runs). A wall-clock `maxTimeInSeconds` is only a safety net.
 - Status handling: `OPTIMAL` → `optimal`; `FEASIBLE` (limit hit) → `feasible`; otherwise an error is raised (should not occur, since the empty roster is always feasible).
 - Variable values come back as `bigint`; an assignment exists when `value === 1n`.
-- Metrics (`unstaffedHours`, `overMaxStaff`, `hoursByStaff`, and in target mode `shortfalls`, `surplusStaffHours`) are **recomputed in plain TypeScript from the decoded assignments**, not read from solver variables, so the report is independent of the model and matches the Coverage view.
+- Metrics (`evaluateRoster`: `understaffing`, `assignedMinutes`, `fairnessSpread`, `shortfalls`, `unstaffedHours`, `hoursByStaff`) are **recomputed in plain TypeScript from the decoded assignments**, not read from solver variables, so the report is independent of the model and matches the Coverage view.
 - Symmetry breaking: employees with the same maximum are interchangeable, so their weekly minutes are ordered (`minutes[i] ≥ minutes[i+1]`). This removes equivalent solutions and speeds up proving optimality; it does not change the best objective value.
 - Time limit defaults to 5 s (deterministic); large, highly symmetric inputs may return `feasible` rather than `optimal`.
 - Browser: run with `executor: 'worker'` so the UI stays responsive; `signal` (AbortSignal) allows cancelling.
@@ -135,20 +100,15 @@ so leaving an hour with transactions empty is worse than almost any amount of ov
 | No transaction data / all counts zero | Empty assignments, note "No demand data"; solver is not even loaded |
 | No staff or no valid shifts | Empty assignments, note explaining why |
 | Employee with `maxWeeklyHours = 0` | Never assigned; excluded from fairness |
-| Not enough capacity | Minimal overtime keeps every hour with transactions staffed; over-max employees listed in `overMaxStaff` |
+| Not enough capacity (within maximum hours) | Understaffing is minimized and reported in the banner; no overtime is ever scheduled |
 | Hour with transactions that no shift template touches | Cannot be staffed; listed in `unstaffedHours` with a note |
-| Explicit target ≤ 0 or NaN | `RangeError` (only when a target is passed) |
 | Day with no demand | No assignments that day |
 | Overlapping shift templates | Allowed to coexist; one employee never gets two overlapping ones |
 | Overnight shifts | Out of scope (end must be after start), as elsewhere in the app |
 
 ## 9. Worked mini-example
 
-Two employees, A (max 8 h) and B (max 4 h); templates S1 09:00–13:00 and S2 11:00–15:00 (overlapping). Monday transactions: 09:00 → 10, 11:00 → 30, 12:00 → 30, 14:00 → 10.
-
-- A cannot take both templates (overlap) and B's cap is one 4 h shift.
-- A → S1 and B → S2 puts both on the 11:00 and 12:00 hours (the busiest), one person on 09:00, 10:00 and 14:00. The 13:00 hour has no transactions and one person (idle penalty, unavoidable here).
-- No headcount target was needed: the busiest hours simply received the most staff. A at 4/8 and B at 4/4 gives a utilization spread of 500‰, the fairness term then competes with demand gains for any alternative.
+One employee (max 8 h), one 12-hour template 08:00–20:00, Monday transactions of 10 per hour in 08–19 (1 person required each hour). Working the template would be 12 h, 4 h over the maximum, so it is not allowed: nobody is assigned and 12 staff-hours are reported understaffed. With a maximum of 12 h the shift is assigned and nothing is understaffed.
 
 ## 10. Performance
 
@@ -160,7 +120,9 @@ A greedy approach (fill the biggest gap, give it to the least-utilised employee)
 
 ## 12. Known limitations / possible later work
 
-- No minimum staffing (e.g. always ≥ 2 at opening) and no manager-set productivity target in the UI; an optional target exists only as a domain option.
+- No minimum staffing (e.g. always ≥ 2 at opening) and no manager-set productivity target. The 15 transactions-per-staff-hour value is an assumption (section 3).
+- Three sequential solves are slower than one and may return `feasible` (good, not proven optimal) within the time budget.
 - No employee availability, skills, breaks, minimum shift counts or preferred days.
 - Fairness considers weekly hours only, not distribution of busy/unpopular shifts.
+- Small teams show large understaffing: coverage cannot be bought with overtime.
 - Regeneration ignores existing assignments. Phase 8 decision: Auto-schedule replaces the week's assignments after an explicit confirmation and offers Undo; no keep-and-fill mode.

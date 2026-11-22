@@ -1,14 +1,16 @@
 import { afterAll, describe, expect, it } from "vitest"
 import { terminateLoadedRuntimeThreads } from "cp-sat-wasm"
 
+import type { AssignmentCandidate } from "./assignment"
 import {
+  evaluateRoster,
   generateSchedule,
   type AutoScheduleInput,
   type AutoScheduleResult,
+  type RosterMetrics,
 } from "./auto-schedule"
-import { computeCoverage } from "./coverage"
 import { validateForPublish } from "./draft"
-import { shiftDurationHours } from "./time"
+import { shiftDurationHours, timesOverlap } from "./time"
 import type {
   Assignment,
   DayOfWeek,
@@ -62,6 +64,10 @@ const uniform = (n: number) => () => n
 const peaks = (_d: DayOfWeek, h: number) =>
   (h >= 11 && h <= 13) || (h >= 17 && h <= 19) ? 75 : 20
 
+/** Demand on given days only, one count for every hour in the range. */
+const onDays = (days: number[], count: number, hours: [number, number]) =>
+  transactions((d) => (days.includes(d) ? count : 0), hours)
+
 const SHIFTS = [
   shift("early", "07:00", "15:00"),
   shift("mid", "11:00", "19:00"),
@@ -77,16 +83,8 @@ const OVERLAPPING = [
   shift("f", "11:00", "14:00"),
 ]
 
-const run = (
-  input: AutoScheduleInput,
-  transactionsPerStaffHour?: number,
-  maxSolveSeconds = 2
-) =>
-  generateSchedule(input, {
-    executor: "direct",
-    transactionsPerStaffHour,
-    maxSolveSeconds,
-  })
+const run = (input: AutoScheduleInput, maxSolveSeconds = 2) =>
+  generateSchedule(input, { executor: "direct", maxSolveSeconds })
 
 const toAssignments = (r: AutoScheduleResult): Assignment[] =>
   r.assignments.map((a, i) => ({ id: `a${i}`, scheduleId: "w", ...a }))
@@ -100,10 +98,9 @@ function assertValid(input: AutoScheduleInput, result: AutoScheduleResult) {
     assignments,
   })
   expect(validation.conflicts).toEqual([]) // no overlapping assignments
-  // Maximum weekly hours are soft: any overtime must be reported, nothing is hidden.
-  expect(validation.overMax.map((o) => o.staff.id).sort()).toEqual(
-    result.overMaxStaff.map((o) => o.staffId).sort()
-  )
+  // Maximum weekly hours are never exceeded.
+  expect(validation.overMax).toEqual([])
+  expect(validation.ok).toBe(true)
   const staffIds = new Set(input.staff.map((s) => s.id))
   const shiftIds = new Set(input.shifts.map((s) => s.id))
   const keys = assignments.map(
@@ -116,15 +113,224 @@ function assertValid(input: AutoScheduleInput, result: AutoScheduleResult) {
   }
 }
 
-const staffedAt = (
-  input: AutoScheduleInput,
-  result: AutoScheduleResult,
-  day: number,
-  hour: number
-) =>
-  computeCoverage(input.shifts, toAssignments(result), input.transactions).days[
-    day
-  ].rows.find((r) => r.hour === hour)!.staffHours
+// ---------------------------------------------------------------------------------------------
+// Brute-force oracle: for tiny inputs, enumerate every roster that respects overlaps and maximum
+// hours and take the lexicographically best (understaffing, total minutes, fairness) tuple.
+// The solver must reach exactly that tuple.
+// ---------------------------------------------------------------------------------------------
+const tupleOf = (m: RosterMetrics) => [
+  m.understaffing,
+  m.assignedMinutes,
+  m.fairnessSpread,
+]
+
+function compareTuples(a: number[], b: number[]) {
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] - b[i]
+  return 0
+}
+
+function bruteForce(input: AutoScheduleInput) {
+  const slots: AssignmentCandidate[] = []
+  for (const p of input.staff.filter((s) => s.maxWeeklyHours > 0))
+    for (let d = 0; d < 7; d++)
+      for (const s of input.shifts)
+        slots.push({ staffId: p.id, shiftId: s.id, dayOfWeek: d as DayOfWeek })
+  expect(slots.length).toBeLessThanOrEqual(14)
+  const shiftById = new Map(input.shifts.map((s) => [s.id, s]))
+  let best: number[] | null = null
+  for (let mask = 0; mask < 1 << slots.length; mask++) {
+    const chosen = slots.filter((_, i) => mask & (1 << i))
+    const overlapping = chosen.some((a, i) =>
+      chosen.some(
+        (b, j) =>
+          j > i &&
+          a.staffId === b.staffId &&
+          a.dayOfWeek === b.dayOfWeek &&
+          timesOverlap(shiftById.get(a.shiftId)!, shiftById.get(b.shiftId)!)
+      )
+    )
+    if (overlapping) continue
+    const metrics = evaluateRoster(input, chosen)
+    const overMax = input.staff.some(
+      (p) => metrics.hoursByStaff[p.id] * 60 > Math.round(p.maxWeeklyHours * 60)
+    )
+    if (overMax) continue
+    const tuple = tupleOf(metrics)
+    if (best === null || compareTuples(tuple, best) < 0) best = tuple
+  }
+  return best!
+}
+
+async function expectLexicographicOptimum(input: AutoScheduleInput) {
+  const result = await run(input)
+  assertValid(input, result)
+  const got = tupleOf(evaluateRoster(input, result.assignments))
+  expect(got).toEqual(bruteForce(input))
+  return result
+}
+
+/** Deterministic pseudo-random numbers so the oracle instances never change. */
+function lcg(seed: number) {
+  let s = seed
+  return () => {
+    s = (s * 1664525 + 1013904223) % 4294967296
+    return s / 4294967296
+  }
+}
+
+describe("maximum weekly hours", () => {
+  it("never schedules overtime, even when hours stay understaffed", async () => {
+    // One employee (max 8 h) and one 12 h template: working it would be 4 h of overtime.
+    const input: AutoScheduleInput = {
+      staff: [staff("a", 8)],
+      shifts: [shift("day", "08:00", "20:00")],
+      transactions: onDays([0], 10, [8, 19]),
+    }
+    const result = await expectLexicographicOptimum(input)
+    expect(result.assignments).toEqual([])
+    expect(result.understaffedStaffHours).toBe(12)
+    expect(result.notes.join(" ")).toMatch(/maximum weekly hours/i)
+  })
+
+  it("allows a roster exactly at the maximum", async () => {
+    const input: AutoScheduleInput = {
+      staff: [staff("a", 12)],
+      shifts: [shift("day", "08:00", "20:00")],
+      transactions: onDays([0], 10, [8, 19]),
+    }
+    const result = await expectLexicographicOptimum(input)
+    expect(result.hoursByStaff.a).toBe(12)
+    expect(result.understaffedStaffHours).toBe(0)
+  })
+
+  it("staffs what fits within each maximum and reports the rest", async () => {
+    // 30 tx per hour need 2 people for 12 hours. a (40 h) covers one place; b (8 h) cannot take
+    // the 12 h template without overtime, so one place stays open.
+    const input: AutoScheduleInput = {
+      staff: [staff("a", 40), staff("b", 8)],
+      shifts: [shift("day", "08:00", "20:00")],
+      transactions: onDays([0], 30, [8, 19]),
+    }
+    const result = await expectLexicographicOptimum(input)
+    expect(result.hoursByStaff).toEqual({ a: 12, b: 0 })
+    expect(result.understaffedStaffHours).toBe(12)
+  })
+
+  it("holds for every maximum, including fractional ones", async () => {
+    const input: AutoScheduleInput = {
+      staff: [staff("a", 7.5), staff("b", 15.5)],
+      shifts: [
+        shift("short", "08:00", "12:00"),
+        shift("long", "10:00", "18:00"),
+      ],
+      transactions: onDays([0, 1, 2], 20, [8, 17]),
+    }
+    const result = await run(input)
+    assertValid(input, result)
+    for (const p of input.staff) {
+      expect(result.hoursByStaff[p.id]).toBeLessThanOrEqual(p.maxWeeklyHours)
+    }
+  })
+
+  it("measures understaffing against 15 transactions per staff hour", () => {
+    // Needs 1, 2, 4, 6, 3 people at 09–13h; the roster has 1, 2, 3, 3, 3.
+    const counts = [10, 30, 60, 90, 45]
+    const staffed = [1, 2, 3, 3, 3]
+    const input: AutoScheduleInput = {
+      staff: Array.from({ length: 3 }, (_, i) => staff(`p${i}`, 40)),
+      shifts: counts.map((_, h) =>
+        shift(`h${h}`, `${String(9 + h).padStart(2, "0")}:00`, `${10 + h}:00`)
+      ),
+      transactions: counts.map((c, h) => ({
+        id: String(h),
+        scheduleId: "w",
+        dayOfWeek: 0 as DayOfWeek,
+        hour: 9 + h,
+        transactionCount: c,
+      })),
+    }
+    const assignments: AssignmentCandidate[] = []
+    staffed.forEach((n, h) => {
+      for (let p = 0; p < n; p++) {
+        assignments.push({ staffId: `p${p}`, shiftId: `h${h}`, dayOfWeek: 0 })
+      }
+    })
+    const m = evaluateRoster(input, assignments)
+    expect(m.shortfalls.map((s) => [s.hour, s.required - s.staffed])).toEqual([
+      [11, 1],
+      [12, 3],
+    ])
+    expect(m.understaffing).toBe(4)
+  })
+
+  it("never lets fairness worsen understaffing", async () => {
+    // Mon–Thu, 12 busy hours each (1 required). a (max 12) and b (max 36) share one 12 h
+    // template: b covers three days, a one. Fairness cannot change who is staffed or add hours.
+    const input: AutoScheduleInput = {
+      staff: [staff("a", 12), staff("b", 36)],
+      shifts: [shift("day", "08:00", "20:00")],
+      transactions: onDays([0, 1, 2, 3], 10, [8, 19]),
+    }
+    const result = await expectLexicographicOptimum(input)
+    expect(result.understaffedStaffHours).toBe(0)
+    expect(result.hoursByStaff).toEqual({ a: 12, b: 36 })
+    expect(result.fairnessSpread).toBe(0)
+  })
+
+  it("compares utilization, not absolute hours, across different maximums", async () => {
+    // 3 shifts are needed (Mon–Wed, 8 h each, 1 person). a: max 8, b: max 16. Equal
+    // utilization is a=1 shift (100%) and b=2 shifts (100%), not 1.5 shifts each.
+    const input: AutoScheduleInput = {
+      staff: [staff("a", 8), staff("b", 16)],
+      shifts: [shift("day", "08:00", "16:00")],
+      transactions: onDays([0, 1, 2], 10, [8, 15]),
+    }
+    const result = await expectLexicographicOptimum(input)
+    expect(result.hoursByStaff).toEqual({ a: 8, b: 16 })
+    expect(result.fairnessSpread).toBe(0)
+  })
+
+  it("ignores employees with a maximum of 0 everywhere, including fairness", async () => {
+    const input: AutoScheduleInput = {
+      staff: [staff("zero", 0), staff("a", 8), staff("b", 16)],
+      shifts: [shift("day", "08:00", "16:00")],
+      transactions: onDays([0, 1, 2], 10, [8, 15]),
+    }
+    const result = await run(input)
+    assertValid(input, result)
+    expect(result.hoursByStaff.zero).toBe(0)
+    expect(result.assignments.every((a) => a.staffId !== "zero")).toBe(true)
+    expect(Number.isFinite(result.fairnessSpread)).toBe(true)
+    expect(result.fairnessSpread).toBe(0)
+  })
+
+  it("matches the brute-force lexicographic optimum on small random inputs", async () => {
+    const rand = lcg(7)
+    const templates = [
+      shift("s1", "08:00", "12:00"),
+      shift("s2", "10:00", "14:00"),
+      shift("s3", "12:00", "20:00"),
+    ]
+    for (let n = 0; n < 12; n++) {
+      const people = 2 + (rand() < 0.5 ? 0 : 1)
+      const shifts = templates.slice(0, rand() < 0.5 ? 1 : 2)
+      const maxes = [4, 8, 12, 16, 24]
+      const input: AutoScheduleInput = {
+        staff: Array.from({ length: people }, (_, i) =>
+          staff(`p${i}`, maxes[Math.floor(rand() * maxes.length)])
+        ),
+        shifts,
+        transactions: transactions(
+          (d, h) =>
+            d < 2 ? 1 + Math.floor(rand() * 9) * (h % 3 === 0 ? 3 : 1) : 0,
+          [8, 13]
+        ),
+      }
+      if (people * 7 * shifts.length > 14) continue
+      await expectLexicographicOptimum(input)
+    }
+  }, 60_000)
+})
 
 describe("generateSchedule", () => {
   it("covers uniform demand across all seven days", async () => {
@@ -135,14 +341,13 @@ describe("generateSchedule", () => {
     }
     const result = await run(input)
     assertValid(input, result)
-    expect(result.status).toBe("optimal")
     expect(result.unstaffedHours).toEqual([])
     for (let d = 0; d < 7; d++) {
       expect(result.assignments.some((a) => a.dayOfWeek === d)).toBe(true)
     }
   })
 
-  it("staffs busy lunch/dinner hours more than quiet hours", async () => {
+  it("staffs busy hours more than quiet hours", async () => {
     const input = {
       staff: team(8, 40),
       shifts: OVERLAPPING,
@@ -150,14 +355,25 @@ describe("generateSchedule", () => {
     }
     const result = await run(input)
     assertValid(input, result)
+    const staffedAt = (d: number, h: number) =>
+      new Set(
+        result.assignments
+          .filter((a) => a.dayOfWeek === d)
+          .filter((a) => {
+            const s = input.shifts.find((x) => x.id === a.shiftId)!
+            return (
+              Number(s.startTime.slice(0, 2)) <= h &&
+              h < Number(s.endTime.slice(0, 2))
+            )
+          })
+          .map((a) => a.staffId)
+      ).size
     for (let d = 0; d < 7; d++) {
-      expect(staffedAt(input, result, d, 12)).toBeGreaterThan(
-        staffedAt(input, result, d, 15)
-      )
+      expect(staffedAt(d, 12)).toBeGreaterThan(staffedAt(d, 15))
     }
   })
 
-  it("uses overtime instead of leaving hours unstaffed when capacity is very low", async () => {
+  it("reports understaffing instead of overtime when capacity is low", async () => {
     const input = {
       staff: team(2, 8),
       shifts: SHIFTS,
@@ -165,44 +381,20 @@ describe("generateSchedule", () => {
     }
     const result = await run(input)
     assertValid(input, result)
-    expect(result.unstaffedHours).toEqual([])
-    expect(result.overMaxStaff.length).toBeGreaterThan(0)
-    expect(result.notes.join(" ")).toMatch(/over their maximum/i)
+    expect(result.understaffedStaffHours).toBeGreaterThan(0)
+    expect(result.assignments.length).toBeGreaterThan(0)
+    expect(result.notes.join(" ")).toMatch(/maximum weekly hours/i)
   })
 
-  it("does not use overtime when capacity is ample", async () => {
+  it("has no understaffing when capacity is ample", async () => {
     const input = {
-      staff: team(10, 40),
+      staff: team(20, 40),
       shifts: SHIFTS,
       transactions: transactions(peaks),
     }
     const result = await run(input)
     assertValid(input, result)
-    expect(result.overMaxStaff).toEqual([])
-    expect(result.unstaffedHours).toEqual([])
-  })
-
-  it("uses overtime only to staff empty hours, and spreads it out", async () => {
-    // One template per hour block, so every hour needs a person and capacity is short.
-    const input = {
-      staff: team(3, 40),
-      shifts: [shift("day", "08:00", "20:00")],
-      transactions: transactions(peaks, [8, 19]),
-    }
-    const result = await run(input)
-    assertValid(input, result)
-    // 7 days × 12 h = 84 h needed; 3 × 40 = 120 h capacity, so no overtime
-    expect(result.overMaxStaff).toEqual([])
-
-    const tight = { ...input, staff: team(2, 40) } // 80 h < 84 h
-    const r2 = await run(tight)
-    assertValid(tight, r2)
-    expect(r2.unstaffedHours).toEqual([])
-    const total = r2.overMaxStaff.reduce((n, o) => n + o.overHours, 0)
-    // 7 indivisible 12 h shifts: two people can take 3 each (36 h); the 7th makes one person 48 h
-    expect(total).toBe(8)
-    // never overtime just to add a second person to an already staffed hour
-    expect(Object.values(r2.hoursByStaff).reduce((n, h) => n + h, 0)).toBe(84)
+    expect(result.understaffedStaffHours).toBe(0)
   })
 
   it("leaves hours unstaffed only when no shift template covers them", async () => {
@@ -215,23 +407,6 @@ describe("generateSchedule", () => {
     assertValid(input, result)
     expect(result.unstaffedHours.every((u) => u.hour >= 16)).toBe(true)
     expect(result.unstaffedHours.length).toBeGreaterThan(0)
-    expect(result.notes.join(" ")).toMatch(/shift template/i)
-  })
-
-  it("balances utilization across employees with different maximums", async () => {
-    const maxes = [40, 30, 16]
-    const input = {
-      staff: team(6, maxes),
-      shifts: OVERLAPPING,
-      transactions: transactions(peaks),
-    }
-    const result = await run(input)
-    assertValid(input, result)
-    const utils = input.staff.map(
-      (s) => result.hoursByStaff[s.id] / s.maxWeeklyHours
-    )
-    expect(Math.min(...utils)).toBeGreaterThan(0.5)
-    expect(Math.max(...utils) - Math.min(...utils)).toBeLessThan(0.35)
   })
 
   it("never gives one employee overlapping templates", async () => {
@@ -245,66 +420,18 @@ describe("generateSchedule", () => {
     expect(result.assignments.length).toBeGreaterThan(0)
   })
 
-  it("keeps every hour with transactions staffed when staff is short", async () => {
-    const input = {
-      staff: team(2, 20),
-      shifts: OVERLAPPING,
-      transactions: transactions(uniform(75)),
-    }
-    const result = await run(input)
-    assertValid(input, result)
-    expect(result.unstaffedHours).toEqual([])
-    expect(result.overMaxStaff.length).toBeGreaterThan(0)
-    expect(result.shortfalls).toEqual([]) // no target configured
-    expect(result.surplusStaffHours).toBe(0)
-  })
-
-  it("reports shortfalls only when an explicit target is configured", async () => {
-    const input = {
-      staff: team(2, 20),
-      shifts: OVERLAPPING,
-      transactions: transactions(uniform(75)),
-    }
-    const result = await run(input, 15)
-    assertValid(input, result)
-    expect(result.shortfalls.length).toBeGreaterThan(0)
-    for (const s of result.shortfalls) {
-      expect(s.staffed).toBeLessThan(s.required)
-    }
-  })
-
-  it("rejects an explicit target that is not a positive number", async () => {
-    const input = { staff: team(1, 40), shifts: SHIFTS, transactions: [] }
-    await expect(run(input, 0)).rejects.toThrow(RangeError)
-    await expect(run(input, Number.NaN)).rejects.toThrow(RangeError)
-  })
-
-  it("is scale invariant: only relative demand matters", async () => {
-    const make = (k: number) => ({
-      staff: team(6, [40, 30]),
-      shifts: OVERLAPPING,
-      transactions: transactions((d, h) => k * peaks(d, h)),
+  it("needs more staff when demand grows (fixed 15 transactions per staff hour)", async () => {
+    const make = (k: number): AutoScheduleInput => ({
+      staff: team(2, 40),
+      shifts: [shift("day", "08:00", "16:00")],
+      transactions: onDays([0], 10 * k, [8, 15]),
     })
-    const base = await run(make(1))
-    const doubled = await run(make(2))
-    expect(doubled.assignments).toEqual(base.assignments)
-  })
-
-  it("splits scarce capacity roughly in proportion to demand", async () => {
-    const input = {
-      staff: team(6, 24),
-      shifts: OVERLAPPING,
-      transactions: transactions((_d, h) => (h >= 11 && h <= 13 ? 90 : 30)),
-    }
-    const result = await run(input)
-    assertValid(input, result)
-    let peak = 0
-    let quiet = 0
-    for (let d = 0; d < 7; d++) {
-      peak += staffedAt(input, result, d, 12)
-      quiet += staffedAt(input, result, d, 16)
-    }
-    expect(peak).toBeGreaterThan(quiet)
+    const light = await run(make(1)) // 10 tx -> 1 person
+    const heavy = await run(make(3)) // 30 tx -> 2 people
+    expect(light.understaffedStaffHours).toBe(0)
+    expect(light.assignments).toHaveLength(1)
+    expect(heavy.assignments).toHaveLength(2)
+    expect(heavy.understaffedStaffHours).toBe(0)
   })
 
   it("returns an empty draft with a note when there is no transaction data", async () => {
@@ -349,17 +476,6 @@ describe("generateSchedule", () => {
     expect(result.assignments.every((a) => a.staffId === "ok")).toBe(true)
     expect(result.assignments.every((a) => a.shiftId !== "bad")).toBe(true)
   })
-
-  it("honours a custom transactions-per-staff-hour target", async () => {
-    const base = {
-      staff: team(10, 40),
-      shifts: SHIFTS,
-      transactions: transactions(uniform(30), [9, 18]),
-    }
-    const loose = await run(base, 30) // 1 required per hour
-    const strict = await run(base, 10) // 3 required per hour
-    expect(strict.assignments.length).toBeGreaterThan(loose.assignments.length)
-  }, 30_000)
 
   it("is deterministic for the same input", async () => {
     const input = {

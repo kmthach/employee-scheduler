@@ -19,9 +19,19 @@ export function getAssignedHours(
 
 export type HoursStatus = "ok" | "at-max" | "over"
 
-/** Maximum hours are a warning threshold only; this never blocks anything. */
+const toMinutes = (hours: number) => Math.round(hours * 60)
+
+/** True when `assigned` hours are above `max` hours (compared in whole minutes, no float drift). */
+export function exceedsMax(assigned: number, max: number): boolean {
+  return toMinutes(assigned) > toMinutes(max)
+}
+
+/**
+ * "over" = above the maximum. New assignments that would go over are refused; "over" can still
+ * appear after a shift template or maximum-hours edit, and then blocks publishing.
+ */
 export function getHoursStatus(assigned: number, max: number): HoursStatus {
-  if (assigned > max) return "over"
-  if (assigned === max) return "at-max"
+  if (exceedsMax(assigned, max)) return "over"
+  if (toMinutes(assigned) === toMinutes(max)) return "at-max"
   return "ok"
 }

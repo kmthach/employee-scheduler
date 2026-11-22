@@ -86,15 +86,26 @@ describe("validateForPublish", () => {
     expect(r.conflicts).toHaveLength(1)
   })
 
-  it("only warns about exceeding maximum weekly hours", () => {
+  it("blocks publishing while an employee exceeds the maximum weekly hours", () => {
     const r = validateForPublish({
       staff: [staff("a", "A", 4)],
       shifts: [shift("am", "A", "07:00", "15:00")],
       assignments: [asg("1", "A", "a", "am")],
     })
-    expect(r.ok).toBe(true)
+    expect(r.ok).toBe(false)
+    expect(r.conflicts).toEqual([])
     expect(r.overMax).toHaveLength(1)
     expect(r.overMax[0].assigned).toBe(8)
+  })
+
+  it("allows publishing exactly at the maximum", () => {
+    const r = validateForPublish({
+      staff: [staff("a", "A", 8)],
+      shifts: [shift("am", "A", "07:00", "15:00")],
+      assignments: [asg("1", "A", "a", "am")],
+    })
+    expect(r.ok).toBe(true)
+    expect(r.overMax).toEqual([])
   })
 })
 

@@ -89,7 +89,7 @@ interface ScheduleState {
    */
   applyGeneratedAssignments: (candidates: AssignmentCandidate[]) => void
   undoAutoSchedule: () => void
-  /** Publishes the viewed week's draft. Blocked (state unchanged) while assignments overlap. */
+  /** Publishes the viewed week's draft. Blocked (state unchanged) while assignments overlap or employees exceed their maximum hours. */
   publishSchedule: () => PublishValidation
   /** Throws away pending changes to a published schedule, restoring its published content. */
   discardDraft: () => void

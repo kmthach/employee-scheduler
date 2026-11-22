@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
 
-import { buildDemandGrid, buildTransactionGrid, requiredStaff } from "./demand"
+import {
+  TRANSACTIONS_PER_STAFF_HOUR,
+  buildRequiredGrid,
+  buildTransactionGrid,
+  requiredStaffFor,
+} from "./demand"
 import type { TransactionRecord } from "./types"
 
 const tx = (
@@ -15,53 +20,6 @@ const tx = (
   transactionCount,
 })
 
-describe("requiredStaff", () => {
-  it("rounds up and needs nobody for zero transactions", () => {
-    expect(requiredStaff(0, 15)).toBe(0)
-    expect(requiredStaff(1, 15)).toBe(1)
-    expect(requiredStaff(15, 15)).toBe(1)
-    expect(requiredStaff(16, 15)).toBe(2)
-    expect(requiredStaff(52, 15)).toBe(4)
-  })
-
-  it("honours the explicit target", () => {
-    expect(requiredStaff(52, 10)).toBe(6)
-    expect(requiredStaff(52, 100)).toBe(1)
-  })
-
-  it("rejects a target that is not positive", () => {
-    expect(() => requiredStaff(10, 0)).toThrow(RangeError)
-    expect(() => requiredStaff(10, -5)).toThrow(RangeError)
-  })
-})
-
-describe("buildDemandGrid", () => {
-  it("returns an all-zero 7x24 grid without data", () => {
-    const grid = buildDemandGrid([], 15)
-    expect(grid).toHaveLength(7)
-    expect(
-      grid.every((row) => row.length === 24 && row.every((n) => n === 0))
-    ).toBe(true)
-  })
-
-  it("places required staff on the right day and hour", () => {
-    const grid = buildDemandGrid([tx(1, 12, 52), tx(6, 22, 5), tx(0, 9, 0)], 15)
-    expect(grid[1][12]).toBe(4)
-    expect(grid[6][22]).toBe(1)
-    expect(grid[0][9]).toBe(0)
-    expect(grid[2][12]).toBe(0)
-  })
-
-  it("ignores out-of-range rows", () => {
-    const bad = { ...tx(0, 5, 30), hour: 24 }
-    expect(
-      buildDemandGrid([bad], 15)
-        .flat()
-        .every((n) => n === 0)
-    ).toBe(true)
-  })
-})
-
 describe("buildTransactionGrid", () => {
   it("places raw counts without any conversion", () => {
     const grid = buildTransactionGrid([
@@ -69,6 +27,7 @@ describe("buildTransactionGrid", () => {
       tx(6, 22, 5),
       tx(0, 9, 0),
     ])
+    expect(grid).toHaveLength(7)
     expect(grid[1][12]).toBe(52)
     expect(grid[6][22]).toBe(5)
     expect(grid[0][9]).toBe(0)
@@ -81,5 +40,41 @@ describe("buildTransactionGrid", () => {
         .flat()
         .every((n) => n === 0)
     ).toBe(true)
+  })
+})
+
+describe("requiredStaffFor", () => {
+  it("is 15 transactions per staff hour, at least one when there is demand", () => {
+    const table: [number, number][] = [
+      [0, 0],
+      [5, 1],
+      [15, 1],
+      [16, 2],
+      [30, 2],
+      [45, 3],
+      [60, 4],
+    ]
+    for (const [transactions, staff] of table) {
+      expect(requiredStaffFor(transactions)).toBe(staff)
+    }
+    expect(TRANSACTIONS_PER_STAFF_HOUR).toBe(15)
+  })
+})
+
+describe("buildRequiredGrid", () => {
+  it("maps every hour independently of team size or total volume", () => {
+    const grid = buildTransactionGrid([
+      tx(0, 9, 5),
+      tx(0, 10, 30),
+      tx(1, 9, 60),
+    ])
+    const required = buildRequiredGrid(grid)
+    expect(required[0][9]).toBe(1)
+    expect(required[0][10]).toBe(2)
+    expect(required[1][9]).toBe(4)
+    expect(required[2][9]).toBe(0)
+    // Adding unrelated demand elsewhere does not change an hour's requirement.
+    const more = buildTransactionGrid([tx(0, 10, 30), tx(5, 12, 900)])
+    expect(buildRequiredGrid(more)[0][10]).toBe(2)
   })
 })

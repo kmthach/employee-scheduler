@@ -31,10 +31,10 @@ export function replaceContent(
 }
 
 export interface PublishValidation {
-  /** Only overlapping assignments block publishing. */
+  /** Overlapping assignments and employees over their maximum hours block publishing. */
   ok: boolean
   conflicts: OverlapConflict[]
-  /** Employees over their maximum weekly hours: a warning, never a blocker. */
+  /** Employees over their maximum weekly hours (possible after a template or maximum edit). */
   overMax: { staff: Staff; assigned: number }[]
 }
 
@@ -42,14 +42,15 @@ export function validateForPublish(
   content: ScheduleContent
 ): PublishValidation {
   const conflicts = findOverlapConflicts(content.shifts, content.assignments)
+  const overMax = getOverMaxStaff(
+    content.staff,
+    content.assignments,
+    content.shifts
+  )
   return {
-    ok: conflicts.length === 0,
+    ok: conflicts.length === 0 && overMax.length === 0,
     conflicts,
-    overMax: getOverMaxStaff(
-      content.staff,
-      content.assignments,
-      content.shifts
-    ),
+    overMax,
   }
 }
 

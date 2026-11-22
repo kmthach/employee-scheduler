@@ -53,10 +53,7 @@ export function useAutoSchedule() {
       setState({
         status: "idle",
         summary: {
-          ...summarizeAutoSchedule(
-            result,
-            filterBySchedule(current.staff, scheduleId)
-          ),
+          ...summarizeAutoSchedule(result),
           scheduleId,
         },
       })

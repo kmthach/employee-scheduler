@@ -36,7 +36,7 @@ export function PublishBar({ schedule, staff, shifts, assignments }: Props) {
   const [confirmDiscard, setConfirmDiscard] = useState(false)
 
   const isDraft = schedule.status === "draft"
-  // Only overlaps block publishing; max-hours is a warning shown elsewhere.
+  // Overlaps and employees over their maximum hours both block publishing.
   const validation = validateForPublish({ staff, shifts, assignments })
 
   return (
@@ -60,12 +60,27 @@ export function PublishBar({ schedule, staff, shifts, assignments }: Props) {
         )}
       </div>
 
-      {isDraft && !validation.ok && (
+      {isDraft && validation.conflicts.length > 0 && (
         <Alert variant="destructive">
           <AlertTitle>Fix overlapping shifts before publishing</AlertTitle>
           <AlertDescription>
             {validation.conflicts
               .map((c) => describeConflict(c, staff, DAYS_OF_WEEK))
+              .join(" ")}
+          </AlertDescription>
+        </Alert>
+      )}
+      {isDraft && validation.overMax.length > 0 && (
+        <Alert variant="destructive">
+          <AlertTitle>
+            Reduce hours over the maximum before publishing
+          </AlertTitle>
+          <AlertDescription>
+            {validation.overMax
+              .map(
+                (o) =>
+                  `${o.staff.name}: ${o.assigned}h of ${o.staff.maxWeeklyHours}h.`
+              )
               .join(" ")}
           </AlertDescription>
         </Alert>

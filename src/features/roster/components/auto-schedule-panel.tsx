@@ -117,7 +117,7 @@ export function AutoScheduleReport({
           {auto.error} Your roster was not changed.
         </AlertDescription>
         <div data-slot="alert-action" className="absolute top-2 right-2">
-          <Button size="sm" variant="outline" onClick={auto.run}>
+          <Button size="sm" variant="outline" onClick={() => auto.run()}>
             Retry
           </Button>
         </div>
@@ -137,24 +137,25 @@ export function AutoScheduleReport({
         {summary.assignmentCount === 1 ? "" : "s"}
       </AlertTitle>
       <AlertDescription>
-        <p>Review and edit it like any manual roster.</p>
-        {summary.unstaffed.length > 0 && (
+        <p>
+          Employees' maximum weekly hours were respected. Staffing assumes about
+          15 transactions per employee per hour. Review and edit the draft like
+          any manual roster.
+        </p>
+        {summary.understaffed.length > 0 ? (
           <p className="text-amber-700 dark:text-amber-400">
-            No staff while transactions occur:{" "}
-            {summary.unstaffed
-              .map((r) => `${DAYS_OF_WEEK[r.dayOfWeek]} ${formatRange(r)}`)
+            Understaffed ({summary.understaffedStaffHours} staff-hour
+            {summary.understaffedStaffHours === 1 ? "" : "s"} short):{" "}
+            {summary.understaffed
+              .map(
+                (r) =>
+                  `${DAYS_OF_WEEK[r.dayOfWeek]} ${formatRange(r)} needs ${r.required}, has ${r.staffed}`
+              )
               .join(" · ")}
             .
           </p>
-        )}
-        {summary.overMax.length > 0 && (
-          <p className="text-amber-700 dark:text-amber-400">
-            Over maximum hours:{" "}
-            {summary.overMax
-              .map((o) => `${o.name} ${o.hours}h of ${o.maxWeeklyHours}h`)
-              .join(" · ")}
-            .
-          </p>
+        ) : (
+          <p>No understaffed hours.</p>
         )}
         {summary.notes.map((n) => (
           <p key={n}>{n}</p>

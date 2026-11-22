@@ -148,15 +148,75 @@ describe("checkAssignment", () => {
     ).toMatchObject({ reason: "wrong-schedule" })
   })
 
-  it("does not block exceeding max weekly hours", () => {
-    const existing = [asg("1", "sam", "am"), asg("2", "sam", "am", 1)]
+  it("allows reaching the maximum exactly but blocks going over it", () => {
+    // Sam's maximum is 8 h; one 8 h shift is exactly at the maximum.
     expect(
-      checkAssignment(data(existing), {
-        staffId: "sam",
-        shiftId: "pm",
-        dayOfWeek: 0,
-      }).ok
+      checkAssignment(data([]), { staffId: "sam", shiftId: "am", dayOfWeek: 0 })
+        .ok
     ).toBe(true)
+    const over = checkAssignment(data([asg("1", "sam", "am")]), {
+      staffId: "sam",
+      shiftId: "pm",
+      dayOfWeek: 1,
+    })
+    expect(over).toMatchObject({
+      ok: false,
+      reason: "over-max",
+      overMax: { staffName: "Sam", hours: 16, maxWeeklyHours: 8 },
+    })
+    expect(describeBlock(over, shifts)).toBe(
+      "Would exceed max hours: Sam 16h of 8h"
+    )
+  })
+
+  it("compares in minutes, so a fractional maximum is exact", () => {
+    const half = {
+      id: "half",
+      scheduleId: "A",
+      startTime: "07:00",
+      endTime: "07:30",
+    }
+    const people: Staff[] = [
+      { id: "p", scheduleId: "A", name: "P", maxWeeklyHours: 8.5 },
+      { id: "q", scheduleId: "A", name: "Q", maxWeeklyHours: 8.4 },
+    ]
+    const base = { staff: people, shifts: [...shifts, half] }
+    const mk = (staffId: string) => asg("1", staffId, "am")
+    const next = (staffId: string) => ({
+      staffId,
+      shiftId: "half",
+      dayOfWeek: 1 as const,
+    })
+    expect(
+      checkAssignment({ ...base, assignments: [mk("p")] }, next("p")).ok
+    ).toBe(true)
+    expect(
+      checkAssignment({ ...base, assignments: [mk("q")] }, next("q"))
+    ).toMatchObject({
+      ok: false,
+      reason: "over-max",
+    })
+  })
+
+  it("does not count the assignment being replaced", () => {
+    const existing = [asg("1", "sam", "am")]
+    const candidate = { staffId: "sam", shiftId: "pm", dayOfWeek: 0 as const }
+    expect(checkAssignment(data(existing), candidate)).toMatchObject({
+      reason: "over-max",
+    })
+    expect(checkAssignment(data(existing), candidate, "1").ok).toBe(true)
+  })
+
+  it("blocks every shift for an employee with a maximum of 0", () => {
+    const zero: Staff[] = [
+      { id: "z", scheduleId: "A", name: "Z", maxWeeklyHours: 0 },
+    ]
+    expect(
+      checkAssignment(
+        { staff: zero, shifts, assignments: [] },
+        { staffId: "z", shiftId: "am", dayOfWeek: 0 }
+      )
+    ).toMatchObject({ ok: false, reason: "over-max" })
   })
 })
 

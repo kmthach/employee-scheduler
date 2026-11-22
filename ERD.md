@@ -76,7 +76,7 @@ Represents one typical Monday–Sunday scheduling week.
 - A schedule owns its staff, shift templates, assignments, and transaction records.
 - Data belonging to one schedule must not be shared with another schedule.
 - The first change to a published schedule (assignments, staff, or adding/editing/deleting a shift template) returns it to `draft` and keeps the last published content, including shift templates, until the draft is published or discarded.
-- A schedule can be published only when no employee has overlapping assignments. Editing a shift template can create overlaps in a draft; they are highlighted in the roster and must be resolved before publishing. Exceeding maximum weekly hours is a warning and does not block publishing.
+- A schedule can be published only when no employee has overlapping assignments. Editing a shift template can create overlaps in a draft; they are highlighted in the roster and must be resolved before publishing. Employees over their maximum weekly hours (possible only after editing a shift template or an employee's maximum) are highlighted and also block publishing.
 
 ### 3.2 Staff
 
@@ -93,7 +93,7 @@ Represents an employee belonging to a specific schedule.
 - A staff member belongs to exactly one schedule.
 - A staff member can have multiple assignments within that schedule.
 - Weekly working hours are calculated from assignments within the schedule.
-- Maximum weekly hours are used as a warning threshold, not a hard restriction.
+- Maximum weekly hours are a hard limit for new assignments; edits that push an employee over are highlighted in the draft and block publishing.
 
 ### 3.3 Shift
 
@@ -132,7 +132,7 @@ Connects a staff member to a shift on a specific day within a schedule.
 - Both the staff member and shift must belong to the assignment's schedule.
 - A staff member cannot have overlapping assignments on the same day.
 - A staff member can have multiple non-overlapping assignments on the same day.
-- Exceeding `maxWeeklyHours` is allowed but must trigger a warning.
+- An assignment that would take an employee above `maxWeeklyHours` is blocked.
 
 ### 3.5 TransactionRecord
 
@@ -179,7 +179,7 @@ Stores hourly transaction counts for a schedule.
 - The referenced staff member and shift must belong to the same schedule as the assignment.
 - The same employee cannot have overlapping assignments within a schedule.
 - Weekly hours must be calculated per employee, per schedule.
-- Maximum weekly hours are a warning threshold, not a hard restriction.
+- Maximum weekly hours are a hard limit; an over-maximum draft cannot be published.
 
 ### Shift
 - Start time must be earlier than end time.
