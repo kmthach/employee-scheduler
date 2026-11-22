@@ -2,9 +2,13 @@ import { CalendarPlus, Clock, Plus, Upload } from "lucide-react"
 import { useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
+import { EmptyState } from "@/components/empty-state"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { computeCoverage } from "@/domain/coverage"
 import { formatWeekRange } from "@/domain/date"
 import { filterBySchedule } from "@/domain/schedule-data"
 import type { Staff } from "@/domain/types"
+import { SummaryView } from "@/features/coverage/components/summary-view"
 import { DeleteStaffDialog } from "@/features/staff/components/delete-staff-dialog"
 import { ShiftTemplatesDialog } from "@/features/shifts/components/shift-templates-dialog"
 import { TransactionsDialog } from "@/features/transactions/components/transactions-dialog"
@@ -14,29 +18,6 @@ import { useScheduleStore } from "@/store/schedule-store"
 import { OverMaxAlert } from "./over-max-alert"
 import { PublishBar } from "./publish-bar"
 import { RosterGrid } from "./roster-grid"
-
-function EmptyState({
-  icon,
-  title,
-  body,
-  action,
-}: {
-  icon: React.ReactNode
-  title: string
-  body: string
-  action: React.ReactNode
-}) {
-  return (
-    <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed p-12 text-center">
-      <div className="text-muted-foreground">{icon}</div>
-      <div>
-        <p className="font-medium">{title}</p>
-        <p className="text-sm text-muted-foreground">{body}</p>
-      </div>
-      {action}
-    </div>
-  )
-}
 
 export function RosterWorkspace() {
   const scheduleId = useScheduleStore((s) => s.currentScheduleId)
@@ -61,6 +42,7 @@ export function RosterWorkspace() {
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Staff | null>(null)
   const [deleting, setDeleting] = useState<Staff | null>(null)
+  const [tab, setTab] = useState<"roster" | "summary">("roster")
   const [shiftsOpen, setShiftsOpen] = useState(false)
   const [transactionsOpen, setTransactionsOpen] = useState(false)
 
@@ -80,6 +62,11 @@ export function RosterWorkspace() {
   const transactions = useMemo(
     () => filterBySchedule(allTransactions, scheduleId),
     [allTransactions, scheduleId]
+  )
+
+  const coverage = useMemo(
+    () => computeCoverage(shifts, assignments, transactions),
+    [shifts, assignments, transactions]
   )
 
   if (!schedule) {
@@ -117,29 +104,55 @@ export function RosterWorkspace() {
           </Button>
         </div>
       </div>
-      <OverMaxAlert staff={staff} shifts={shifts} assignments={assignments} />
-      {staff.length > 0 && assignments.length === 0 && (
-        <p className="text-sm text-muted-foreground">
-          No shifts assigned yet — use the + in a day cell to assign a shift.
-        </p>
-      )}
-      <RosterGrid
-        scheduleId={scheduleId}
-        staff={staff}
-        shifts={shifts}
-        assignments={assignments}
-        published={published}
-        onOpenShifts={() => setShiftsOpen(true)}
-        onAddStaff={() => {
-          setEditing(null)
-          setFormOpen(true)
-        }}
-        onEditStaff={(s) => {
-          setEditing(s)
-          setFormOpen(true)
-        }}
-        onDeleteStaff={setDeleting}
-      />
+      <Tabs
+        value={tab}
+        onValueChange={(value) => setTab(value as "roster" | "summary")}
+      >
+        <TabsList>
+          <TabsTrigger value="roster">Roster</TabsTrigger>
+          <TabsTrigger value="summary">Summary</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="roster" className="flex flex-col gap-4">
+          <OverMaxAlert
+            staff={staff}
+            shifts={shifts}
+            assignments={assignments}
+          />
+          {staff.length > 0 && assignments.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              No shifts assigned yet — use the + in a day cell to assign a
+              shift.
+            </p>
+          )}
+          <RosterGrid
+            scheduleId={scheduleId}
+            staff={staff}
+            shifts={shifts}
+            assignments={assignments}
+            published={published}
+            onOpenShifts={() => setShiftsOpen(true)}
+            onAddStaff={() => {
+              setEditing(null)
+              setFormOpen(true)
+            }}
+            onEditStaff={(s) => {
+              setEditing(s)
+              setFormOpen(true)
+            }}
+            onDeleteStaff={setDeleting}
+          />
+        </TabsContent>
+
+        <TabsContent value="summary" className="flex flex-col gap-6">
+          <SummaryView
+            scheduleId={scheduleId}
+            coverage={coverage}
+            hasTransactions={transactions.length > 0}
+            onUploadTransactions={() => setTransactionsOpen(true)}
+          />
+        </TabsContent>
+      </Tabs>
 
       <TransactionsDialog
         open={transactionsOpen}

@@ -206,27 +206,37 @@ Tasks:
 - The template and table headers follow the sample layout: title row with the schedule's date range (e.g. `Aug 10, 2026 - Aug 16, 2026`), dated day headers (`Mon, 10 Aug`), hour rows, BOM + CRLF. The dialog title shows the schedule duration.
 - Persistence is still deferred to Phase 9. Hours absent from the data have no record.
 
-## Phase 6 — Coverage Analysis and Aggregated Summary
+## Phase 6 — Coverage Analysis and Aggregated Summary ✅ Complete (manual browser check pending)
 
 **Goal:** Give managers visibility into staffing versus demand.
 
 Tasks:
 
-- [ ] Calculate hourly staff coverage.
-- [ ] Calculate transactions per staff hour.
-- [ ] Handle zero-staff hours.
-- [ ] Calculate total weekly staff hours.
-- [ ] Calculate total weekly transactions.
-- [ ] Calculate overall transactions per staff hour.
-- [ ] Calculate average hourly transactions per staff hour.
-- [ ] Display the aggregated summary.
-- [ ] Ensure metrics update after every roster edit.
+- [x] Calculate hourly staff coverage.
+- [x] Calculate transactions per staff hour.
+- [x] Handle zero-staff hours.
+- [x] Calculate total weekly staff hours.
+- [x] Calculate total weekly transactions.
+- [x] Calculate overall transactions per staff hour.
+- [x] Calculate average hourly transactions per staff hour.
+- [x] Display the aggregated summary.
+- [x] Ensure metrics update after every roster edit.
 
 **Completion criteria:**
 
 - All required hourly and weekly metrics are correct.
 - Both weekly ratio metrics are displayed separately.
 - Manual roster edits immediately update the summary.
+
+**Scope notes / decisions:**
+
+- Daily Coverage (day selector, hourly table, day totals) and Weekly Summary (four metrics) sit under the roster on the same screen; logic is in `src/domain/coverage.ts`.
+- Staff hours per hour = distinct employees whose shift touches that clock hour (an off-the-hour shift counts in every hour it touches; overlapping draft assignments for one employee count once).
+- Rows = hours in the transaction data plus hours touched by worked shifts; staffed hours missing from the data count as 0 transactions.
+- No target ratio or understaffing threshold is assumed. Only objective marker: "No staff" on hours that have transactions but no staff.
+- With no transaction data, Coverage and Weekly Summary show an upload prompt instead; the roster stays usable.
+- Added the shadcn `card` component.
+- Follow-up: the Roster and Summary are separate tabs (shadcn `tabs` added). Publish bar and the Upload transactions / Shifts buttons stay above the tabs; Daily Coverage and Weekly Summary live in the Summary tab. Selected tab is local UI state.
 
 ## Phase 7 — Auto-Scheduling Algorithm
 
