@@ -115,3 +115,16 @@ export function getOverMaxStaff(
       (x) => getHoursStatus(x.assigned, x.staff.maxWeeklyHours) === "over"
     )
 }
+
+/** Replaces every assignment of one schedule with `candidates`; other schedules are untouched. */
+export function replaceAssignments(
+  assignments: Assignment[],
+  scheduleId: string,
+  candidates: AssignmentCandidate[],
+  makeId: () => string
+): Assignment[] {
+  return [
+    ...assignments.filter((a) => a.scheduleId !== scheduleId),
+    ...candidates.map((c) => ({ id: makeId(), scheduleId, ...c })),
+  ]
+}

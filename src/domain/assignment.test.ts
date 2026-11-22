@@ -6,6 +6,7 @@ import {
   describeBlock,
   getOverMaxStaff,
   removeAssignment,
+  replaceAssignments,
   updateAssignment,
 } from "./assignment"
 import type { Assignment, Shift, Staff } from "./types"
@@ -193,6 +194,41 @@ describe("getOverMaxStaff", () => {
     expect(result[0]).toMatchObject({ assigned: 16 })
     expect(result[0].staff.id).toBe("sam")
     expect(getOverMaxStaff(staff, removeAssignment(over, "2"), shifts)).toEqual(
+      []
+    )
+  })
+})
+
+describe("replaceAssignments", () => {
+  const old = (id: string, scheduleId: string): Assignment => ({
+    id,
+    scheduleId,
+    staffId: "x",
+    shiftId: "y",
+    dayOfWeek: 0,
+  })
+
+  it("replaces only the given schedule's assignments", () => {
+    let n = 0
+    const result = replaceAssignments(
+      [old("1", "w1"), old("2", "w2"), old("3", "w1")],
+      "w1",
+      [
+        { staffId: "a", shiftId: "s", dayOfWeek: 1 },
+        { staffId: "b", shiftId: "s", dayOfWeek: 2 },
+      ],
+      () => `new${n++}`
+    )
+    expect(result.filter((a) => a.scheduleId === "w2")).toEqual([
+      old("2", "w2"),
+    ])
+    const w1 = result.filter((a) => a.scheduleId === "w1")
+    expect(w1.map((a) => a.id)).toEqual(["new0", "new1"])
+    expect(w1.map((a) => a.staffId)).toEqual(["a", "b"])
+  })
+
+  it("clears the schedule when there are no candidates", () => {
+    expect(replaceAssignments([old("1", "w1")], "w1", [], () => "n")).toEqual(
       []
     )
   })

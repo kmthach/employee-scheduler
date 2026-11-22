@@ -5,6 +5,7 @@ import {
   addAssignment,
   checkAssignment,
   removeAssignment,
+  replaceAssignments,
   updateAssignment,
 } from "@/domain/assignment"
 import type { AssignmentCandidate, AssignmentCheck } from "@/domain/assignment"
@@ -50,6 +51,11 @@ interface ScheduleState {
    * schedule has pending changes, its last published content is kept here until publish/discard.
    */
   publishedSnapshots: Record<string, ScheduleContent>
+  /**
+   * Assignments replaced by the last auto-schedule run, so it can be undone. Cleared by the next
+   * change to any schedule (see `markChanged`), so Undo never overwrites later manual edits.
+   */
+  autoScheduleUndo: { scheduleId: string; assignments: Assignment[] } | null
   /** Demand data per schedule. Not roster content, so it is outside draft/publish snapshots. */
   transactions: TransactionRecord[]
   transactionReports: Record<string, TransactionReport>
@@ -77,6 +83,12 @@ interface ScheduleState {
     report: TransactionReport
   ) => void
   clearTransactions: () => void
+  /**
+   * Replaces the viewed week's assignments with generated ones (a published week becomes a
+   * draft). The replaced assignments are kept for `undoAutoSchedule`.
+   */
+  applyGeneratedAssignments: (candidates: AssignmentCandidate[]) => void
+  undoAutoSchedule: () => void
   /** Publishes the viewed week's draft. Blocked (state unchanged) while assignments overlap. */
   publishSchedule: () => PublishValidation
   /** Throws away pending changes to a published schedule, restoring its published content. */
@@ -94,7 +106,12 @@ const todayId = getScheduleId(new Date())
 
 type State = Pick<
   ScheduleState,
-  "schedules" | "staff" | "shifts" | "assignments" | "publishedSnapshots"
+  | "schedules"
+  | "staff"
+  | "shifts"
+  | "assignments"
+  | "publishedSnapshots"
+  | "autoScheduleUndo"
 >
 
 /**
@@ -104,12 +121,13 @@ type State = Pick<
 function markChanged(
   s: State,
   id: string
-): Pick<State, "schedules" | "publishedSnapshots"> {
+): Pick<State, "schedules" | "publishedSnapshots" | "autoScheduleUndo"> {
   const schedule = s.schedules.find((x) => x.id === id)
   const startsDraft =
     schedule?.status === "published" && !s.publishedSnapshots[id]
   const now = new Date().toISOString()
   return {
+    autoScheduleUndo: null,
     schedules: s.schedules.map((x) =>
       x.id === id
         ? { ...x, updatedAt: now, status: startsDraft ? "draft" : x.status }
@@ -138,6 +156,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
   shifts: [],
   assignments: [],
   publishedSnapshots: {},
+  autoScheduleUndo: null,
   transactions: [],
   transactionReports: {},
 
@@ -326,6 +345,36 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
       return {
         assignments: removeAssignment(s.assignments, id),
         ...markChanged(s, target.scheduleId),
+      }
+    }),
+
+  applyGeneratedAssignments: (candidates) =>
+    set((s) => {
+      const id = s.currentScheduleId
+      if (!s.schedules.some((x) => x.id === id)) return s
+      return {
+        ...markChanged(s, id),
+        assignments: replaceAssignments(s.assignments, id, candidates, () =>
+          crypto.randomUUID()
+        ),
+        autoScheduleUndo: {
+          scheduleId: id,
+          assignments: s.assignments.filter((a) => a.scheduleId === id),
+        },
+      }
+    }),
+
+  undoAutoSchedule: () =>
+    set((s) => {
+      const undo = s.autoScheduleUndo
+      if (!undo) return s
+      return {
+        ...markChanged(s, undo.scheduleId),
+        assignments: [
+          ...s.assignments.filter((a) => a.scheduleId !== undo.scheduleId),
+          ...undo.assignments,
+        ],
+        autoScheduleUndo: null,
       }
     }),
 

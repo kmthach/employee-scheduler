@@ -15,6 +15,8 @@ import { TransactionsDialog } from "@/features/transactions/components/transacti
 import { StaffFormDialog } from "@/features/staff/components/staff-form-dialog"
 import { useScheduleStore } from "@/store/schedule-store"
 
+import { useAutoSchedule } from "../use-auto-schedule"
+import { AutoScheduleButton, AutoScheduleReport } from "./auto-schedule-panel"
 import { OverMaxAlert } from "./over-max-alert"
 import { PublishBar } from "./publish-bar"
 import { RosterGrid } from "./roster-grid"
@@ -39,6 +41,7 @@ export function RosterWorkspace() {
   const updateStaff = useScheduleStore((s) => s.updateStaff)
   const deleteStaff = useScheduleStore((s) => s.deleteStaff)
 
+  const auto = useAutoSchedule()
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Staff | null>(null)
   const [deleting, setDeleting] = useState<Staff | null>(null)
@@ -96,6 +99,17 @@ export function RosterWorkspace() {
           assignments={assignments}
         />
         <div className="flex items-center gap-2">
+          <AutoScheduleButton
+            auto={auto}
+            scheduleId={scheduleId}
+            staffCount={staff.length}
+            shiftCount={shifts.length}
+            hasTransactions={transactions.length > 0}
+            assignmentCount={assignments.length}
+            isPublished={
+              published !== undefined || schedule.status === "published"
+            }
+          />
           <Button variant="outline" onClick={() => setTransactionsOpen(true)}>
             <Upload /> Upload transactions
           </Button>
@@ -114,6 +128,7 @@ export function RosterWorkspace() {
         </TabsList>
 
         <TabsContent value="roster" className="flex flex-col gap-4">
+          <AutoScheduleReport scheduleId={scheduleId} auto={auto} />
           <OverMaxAlert
             staff={staff}
             shifts={shifts}
@@ -121,8 +136,8 @@ export function RosterWorkspace() {
           />
           {staff.length > 0 && assignments.length === 0 && (
             <p className="text-sm text-muted-foreground">
-              No shifts assigned yet — use the + in a day cell to assign a
-              shift.
+              No shifts assigned yet — use Auto-schedule to generate a draft, or
+              the + in a day cell to assign a shift.
             </p>
           )}
           <RosterGrid

@@ -56,6 +56,7 @@ beforeEach(() => {
       asg("3", "B", "s2", "bm"),
     ],
     publishedSnapshots: {},
+    autoScheduleUndo: null,
     transactions: [],
     transactionReports: {},
   })
@@ -401,5 +402,65 @@ describe("transactions", () => {
     const s = useScheduleStore.getState()
     expect(s.transactions.map((t) => t.id)).toEqual(["2"])
     expect(Object.keys(s.transactionReports)).toEqual(["B"])
+  })
+})
+
+describe("auto-schedule apply and undo", () => {
+  const generated = [
+    { staffId: "s1", shiftId: "pm", dayOfWeek: 2 as const },
+    { staffId: "s1", shiftId: "am", dayOfWeek: 3 as const },
+  ]
+  const inA = () =>
+    useScheduleStore.getState().assignments.filter((a) => a.scheduleId === "A")
+
+  it("replaces only the viewed week's assignments", () => {
+    useScheduleStore.getState().applyGeneratedAssignments(generated)
+    expect(inA().map((a) => [a.shiftId, a.dayOfWeek])).toEqual([
+      ["pm", 2],
+      ["am", 3],
+    ])
+    expect(
+      useScheduleStore
+        .getState()
+        .assignments.filter((a) => a.scheduleId === "B")
+    ).toHaveLength(1)
+  })
+
+  it("undo restores the previous assignments exactly", () => {
+    const before = inA()
+    useScheduleStore.getState().applyGeneratedAssignments(generated)
+    useScheduleStore.getState().undoAutoSchedule()
+    expect(inA()).toEqual(before)
+    expect(useScheduleStore.getState().autoScheduleUndo).toBeNull()
+  })
+
+  it("a manual edit clears undo so later edits are never overwritten", () => {
+    useScheduleStore.getState().applyGeneratedAssignments(generated)
+    const first = inA()[0]
+    useScheduleStore.getState().removeAssignment(first.id)
+    expect(useScheduleStore.getState().autoScheduleUndo).toBeNull()
+    useScheduleStore.getState().undoAutoSchedule()
+    expect(inA()).toHaveLength(1)
+  })
+
+  it("turns a published week into a draft and keeps the published version", () => {
+    useScheduleStore.setState({
+      schedules: [sched("A", "published"), sched("B")],
+    })
+    useScheduleStore.getState().applyGeneratedAssignments(generated)
+    const state = useScheduleStore.getState()
+    expect(state.schedules.find((x) => x.id === "A")?.status).toBe("draft")
+    expect(state.publishedSnapshots.A.assignments.map((a) => a.id)).toEqual([
+      "1",
+      "2",
+    ])
+    state.discardDraft()
+    expect(inA().map((a) => a.id)).toEqual(["1", "2"])
+  })
+
+  it("does nothing when the viewed week has no schedule", () => {
+    useScheduleStore.setState({ currentScheduleId: "Z" })
+    useScheduleStore.getState().applyGeneratedAssignments(generated)
+    expect(useScheduleStore.getState().autoScheduleUndo).toBeNull()
   })
 })

@@ -269,7 +269,7 @@ Test scenarios:
 **Completion criteria:**
 
 - Algorithm generates valid assignments.
-- Employee maximum weekly hours are respected.
+- Employee maximum weekly hours are respected as far as possible (soft limit: overtime is minimised and reported; see Phase 8 scope notes).
 - Employee assignments never overlap.
 - Busy hours receive more staffing than quieter hours when feasible.
 - Work is distributed reasonably fairly.
@@ -279,11 +279,11 @@ Scope notes:
 
 - Algorithm is documented in `algorithm.md`; code is `src/domain/demand.ts` (transaction grid; optional explicit transactions-per-staff-hour target, no default) and `src/domain/auto-schedule.ts` (`generateSchedule`, CP-SAT model). Domain only: no UI, store or Vite config changes.
 - New dependency: `cp-sat-wasm` (OR-Tools CP-SAT in WebAssembly), validated by a spike in Node and Chromium before adoption. It is imported lazily inside `generateSchedule`, so trivial runs (no demand, no staff) never load WASM.
-- Decisions: the generator treats maximum weekly hours as a hard cap (manual edits may still exceed it with a warning); regeneration ignores existing assignments (Phase 8 decides how to preserve manual work); fairness is the spread of utilization (assigned hours / own maximum); employees with the same maximum are symmetry-broken to speed up solving.
+- Decisions: the generator originally treated maximum weekly hours as a hard cap (superseded: now a minimised soft limit, see Phase 8 scope notes); regeneration ignores existing assignments (Phase 8 decides how to preserve manual work); fairness is the spread of utilization (assigned hours / own maximum); employees with the same maximum are symmetry-broken to speed up solving.
 - Results are deterministic (1 worker, fixed seed, deterministic time limit; default 5 s). When the limit is hit the best valid roster is returned with status `feasible`; an optimal proof is not guaranteed for large, symmetric inputs.
 - Library quirks: `result.status` should be read via `statusName()`; variable values are `bigint`; a "OR-Tools WASM Cloud" banner is printed on first solve.
 - Tests: `demand.test.ts`, `auto-schedule.test.ts` (all roadmap scenarios, determinism, larger 30-employee case, explicit target, scale invariance, proportional allocation).
-- Scope change (follow-up): removed the hardcoded 15 transactions-per-staff-hour target; it was an arbitrary business assumption. Transaction counts are now relative demand weights (concave proportional objective, no labor-cost term, so no hidden threshold). Transactions per staff hour remains an evaluation metric in Coverage. `AutoScheduleResult` gained `unstaffedHours`; `shortfalls`/`surplusStaffHours` only apply if a target is passed explicitly. Consequence: employees are scheduled toward the same % of their maximum hours.
+- Scope change (follow-up): removed the hardcoded 15 transactions-per-staff-hour target; it was an arbitrary business assumption. Transaction counts are relative demand weights (concave proportional objective, no labor-cost term, so no hidden threshold). Transactions per staff hour remains an evaluation metric in Coverage. `AutoScheduleResult` gained `unstaffedHours`; `shortfalls`/`surplusStaffHours` only apply if a target is passed explicitly. Consequence: employees are scheduled toward the same % of their maximum hours.
 
 ## Phase 8 — Auto-Scheduling Integration and UX Refinement
 
@@ -291,19 +291,19 @@ Scope notes:
 
 Tasks:
 
-- [ ] Add Auto-schedule action.
-- [ ] Display generated assignments in the roster.
-- [ ] Allow managers to review and edit the generated draft.
-- [ ] Make regeneration behavior explicit.
-- [ ] Display understaffing warnings (use `unstaffedHours` from the generator; no target ratio assumed).
-- [ ] Display employee maximum-hours warnings.
-- [ ] Ensure coverage metrics update immediately.
+- [x] Add Auto-schedule action.
+- [x] Display generated assignments in the roster.
+- [x] Allow managers to review and edit the generated draft.
+- [x] Make regeneration behavior explicit.
+- [x] Display understaffing warnings (use `unstaffedHours` from the generator; no target ratio assumed).
+- [x] Display employee maximum-hours warnings.
+- [x] Ensure coverage metrics update immediately.
 - [ ] Refine assignment interactions.
-- [ ] Improve empty, loading, and error states.
+- [x] Improve empty, loading, and error states.
 - [ ] Configure Vite for `cp-sat-wasm`: `optimizeDeps.exclude: ['cp-sat-wasm']`, `include: ['protobufjs']`, `worker.format: 'es'`, and COOP/COEP headers on `server` and `preview` (verified in Chromium; Firefox/Safari untested).
 - [ ] Confirm the production host can send COOP/COEP headers (e.g. GitHub Pages cannot) and that other assets stay compatible.
 - [ ] Run the solver with `executor: 'worker'`, support cancel via `AbortSignal`, and show loading/error states; the WASM download is about 2.7 MB gzip in Chromium.
-- [ ] Decide how regeneration treats existing manual assignments.
+- [x] Decide how regeneration treats existing manual assignments.
 
 **Completion criteria:**
 
@@ -311,6 +311,17 @@ Tasks:
 - Manual edits are not silently discarded.
 - Problems are communicated clearly.
 - Roster and coverage views stay synchronized.
+
+Scope notes:
+
+- Scope change (follow-up 1): the generator no longer treats maximum weekly hours as a hard cap (it contradicted the "warning, not a restriction" rule). Overtime is a minimised soft cost; `AutoScheduleResult` gained `overMaxStaff`.
+- Scope change (follow-up 2, reverted): a manager-chosen transactions-per-employee-hour target (Auto-schedule input dialog pre-filled with 15, stored per schedule, Coverage "Understaffed" flag) was built and then removed in favour of the simpler ratio-free algorithm above. Nothing of it remains except the opt-in `transactionsPerStaffHour` option in the domain, which no UI sets.
+- Status: implemented; the Vite config, worker run/cancel and production-host items stay unchecked until verified in a real browser. Verified so far: verified by unit/store tests, type check, lint, build and the `preview` response headers. **Manual browser check pending** (generate, edit, replace + undo, cancel, published-week draft, missing-isolation error).
+- Regeneration decision: Auto-schedule replaces all assignments of the viewed week. If any exist, a confirmation dialog states the count; afterwards an Undo restores them (`autoScheduleUndo` in the store, cleared by the next change so it never overwrites later edits). A published week becomes a draft and its published version is kept (Discard still works). Keep-and-fill was considered and not built.
+- Understaffing warning = hours with transactions but no staff (`unstaffedHours`); no target ratio. With maximum hours soft in the generator this only happens when no shift template covers an hour. Max-hours warning is the existing `OverMaxAlert`; the generation banner also lists employees scheduled over their maximum. Coverage and roster derive from the store, so they update immediately.
+- Hosting: COOP/COEP set for Vite `server` and `preview` only; production host must send them (documented in README; GitHub Pages cannot). Missing isolation shows an error state instead of failing silently.
+- Code: `replaceAssignments` (assignment.ts), `auto-schedule-report.ts`, store actions `applyGeneratedAssignments`/`undoAutoSchedule`, `use-auto-schedule.ts`, `auto-schedule-panel.tsx`. No new shadcn components or dependencies (Undo is inline in an Alert, not a toast).
+- Not done: "Refine assignment interactions" is left open (no concrete changes beyond clearing Undo on manual edits).
 
 ## Phase 9 — Persistence, Testing, and Final Polish
 

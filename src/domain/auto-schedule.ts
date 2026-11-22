@@ -1,6 +1,6 @@
 import type { AssignmentCandidate } from "./assignment"
 import { staffedHours } from "./coverage"
-import { buildDemandGrid, buildTransactionGrid } from "./demand"
+import { buildDemandGrid, buildTransactionGrid, requiredStaff } from "./demand"
 import { shiftDurationHours, timesOverlap } from "./time"
 import type { DayOfWeek, Shift, Staff, TransactionRecord } from "./types"
 
@@ -20,10 +20,24 @@ export const IDLE_WEIGHT = 1
 /** Cost of one permille of utilization spread, relative to the demand gains above. A tuning knob. */
 export const FAIRNESS_WEIGHT = 100
 
+/**
+ * Maximum weekly hours are a soft limit (they are a warning, not a restriction, everywhere else
+ * in the app): overtime is allowed but costs `OVERTIME_WEIGHT_PER_HOUR` per hour.
+ * Ordering that matters (default mode): COVERED_HOUR_BONUS ≫ OVERTIME_WEIGHT_PER_HOUR >
+ * DEMAND_SCALE / 2 (the largest gain of a 2nd or later employee in an hour). So overtime is used
+ * to staff an hour that would otherwise have nobody, never just to add staff to a staffed hour.
+ */
+export const COVERED_HOUR_BONUS = 50_000_000
+export const OVERTIME_WEIGHT_PER_HOUR = 600_000
+/** Extra cost per minute of the largest individual overtime, so overtime is spread out. */
+export const OVERTIME_SPREAD_WEIGHT = 100
+
 /** Explicit-target mode only: covering demand ≫ not overstaffing ≫ fairness. */
 export const SHORTFALL_WEIGHT = 10_000
 export const SURPLUS_WEIGHT = 300
 export const SPREAD_WEIGHT = 1
+/** Explicit-target mode overtime: above SURPLUS_WEIGHT, below what a shortfall hour costs. */
+export const TARGET_OVERTIME_WEIGHT_PER_HOUR = 1_200
 
 const DEFAULT_MAX_SOLVE_SECONDS = 5
 const RANDOM_SEED = 1
@@ -37,7 +51,7 @@ export interface AutoScheduleInput {
 export interface AutoScheduleOptions {
   /**
    * Optional explicit target: required staff = ceil(transactions / this). Omitted by default;
-   * without it, transaction counts only act as relative demand weights.
+   * without it, transaction counts only act as relative demand weights. No caller sets it today.
    */
   transactionsPerStaffHour?: number
   /** "worker" keeps the UI responsive (default); "direct" blocks but is simpler in tests. */
@@ -60,6 +74,13 @@ export interface UnstaffedHour {
   transactions: number
 }
 
+export interface OverMaxStaff {
+  staffId: string
+  hours: number
+  maxWeeklyHours: number
+  overHours: number
+}
+
 export interface AutoScheduleResult {
   /** IDs and scheduleId are added by the caller. */
   assignments: AssignmentCandidate[]
@@ -72,6 +93,8 @@ export interface AutoScheduleResult {
   /** Explicit-target mode only: staff-hours above the required level. 0 otherwise. */
   surplusStaffHours: number
   hoursByStaff: Record<string, number>
+  /** Employees scheduled above their maximum weekly hours (the generator minimizes this). */
+  overMaxStaff: OverMaxStaff[]
   notes: string[]
 }
 
@@ -83,6 +106,7 @@ function emptyResult(staff: Staff[], notes: string[]): AutoScheduleResult {
     shortfalls: [],
     surplusStaffHours: 0,
     hoursByStaff: Object.fromEntries(staff.map((s) => [s.id, 0])),
+    overMaxStaff: [],
     notes,
   }
 }
@@ -93,6 +117,7 @@ export async function generateSchedule(
 ): Promise<AutoScheduleResult> {
   const target = options.transactionsPerStaffHour
   const explicit = target !== undefined
+  if (explicit) requiredStaff(1, target) // RangeError if not a positive number
   const txGrid = buildTransactionGrid(input.transactions)
   const demand = explicit ? buildDemandGrid(input.transactions, target) : txGrid
   const totalTx = txGrid.flat().reduce((n, v) => n + v, 0)
@@ -139,9 +164,10 @@ export async function generateSchedule(
     }
   }
 
-  // Hard: maximum weekly hours (generator only; manual edits may exceed it with a warning).
+  // Soft: maximum weekly hours. over[e] = minutes beyond the maximum; it is penalized below.
   const util = [] as ReturnType<typeof model.newIntVar>[]
   const weeklyMinutes: InstanceType<typeof LinearExpr>[] = []
+  const overs = [] as ReturnType<typeof model.newIntVar>[]
   people.forEach((person, p) => {
     const minuteTerms = days.flatMap((d) =>
       shifts.map((s, i) => x[p][d][i].times(minutesOf(s)))
@@ -149,10 +175,13 @@ export async function generateSchedule(
     const minutes = LinearExpr.from(LinearExpr.sum(minuteTerms))
     weeklyMinutes.push(minutes)
     const maxMinutes = Math.round(person.maxWeeklyHours * 60)
-    model.add(minutes.le(maxMinutes))
-    // Fairness: utilization in permille of this employee's own maximum.
+    const over = model.newIntVar(0, 7 * 24 * 60, `over_${person.id}`)
+    model.add(minutes.minus(over).le(maxMinutes))
+    model.add(over.minus(minutes).le(0))
+    overs.push(over)
+    // Fairness: utilization of this employee's own maximum, in permille, ignoring overtime.
     const u = model.newIntVar(0, 1000, `util_${person.id}`)
-    model.addDivisionEquality(u, minutes.times(1000), maxMinutes)
+    model.addDivisionEquality(u, minutes.minus(over).times(1000), maxMinutes)
     util.push(u)
   })
 
@@ -180,6 +209,7 @@ export async function generateSchedule(
       }
       if (terms.length === 0) continue
       const tx = txGrid[d][h]
+      const staffed = LinearExpr.from(LinearExpr.sum(terms))
       if (!explicit) {
         if (tx <= 0) {
           // No transactions: staffing this hour has no demand value.
@@ -190,11 +220,14 @@ export async function generateSchedule(
           continue
         }
         // Diminishing returns: k-th employee earns DEMAND_SCALE · share / k.
-        const staffed = LinearExpr.from(LinearExpr.sum(terms))
         const covered = []
         for (let k = 1; k <= people.length; k++) {
-          const gain = Math.round((DEMAND_SCALE * tx) / (totalTx * k))
-          if (gain <= 0) break
+          const proportional = Math.round((DEMAND_SCALE * tx) / (totalTx * k))
+          if (proportional <= 0) break
+          // The first employee also earns the flat bonus: an hour with transactions should
+          // never be left with nobody if overtime can fix it.
+          const gain =
+            k === 1 ? proportional + COVERED_HOUR_BONUS : proportional
           const c = model.newBoolVar(`cov_${d}_${h}_${k}`)
           covered.push(c)
           objVars.push(c)
@@ -204,7 +237,6 @@ export async function generateSchedule(
         continue
       }
       const required = demand[d][h]
-      const staffed = LinearExpr.from(LinearExpr.sum(terms))
       if (required > 0) {
         const shortfall = model.newIntVar(0, required, `short_${d}_${h}`)
         model.add(staffed.plus(shortfall).ge(required))
@@ -228,6 +260,18 @@ export async function generateSchedule(
   objVars.push(maxUtil, minUtil)
   const spreadWeight = explicit ? SPREAD_WEIGHT : FAIRNESS_WEIGHT
   objCoeffs.push(spreadWeight, -spreadWeight)
+
+  // Soft: overtime, minimized in total and spread across employees.
+  const overtimeWeight =
+    (explicit ? TARGET_OVERTIME_WEIGHT_PER_HOUR : OVERTIME_WEIGHT_PER_HOUR) / 60
+  const maxOver = model.newIntVar(0, 7 * 24 * 60, "max_over")
+  for (const over of overs) {
+    objVars.push(over)
+    objCoeffs.push(overtimeWeight)
+    model.add(maxOver.minus(over).ge(0))
+  }
+  objVars.push(maxOver)
+  objCoeffs.push(OVERTIME_SPREAD_WEIGHT)
 
   model.minimize(weightedSum(objVars, objCoeffs))
 
@@ -302,9 +346,22 @@ export async function generateSchedule(
   for (const a of assignments) {
     hoursByStaff[a.staffId] += shiftDurationHours(shiftById.get(a.shiftId)!)
   }
+  const overMaxStaff: OverMaxStaff[] = people
+    .filter((p) => hoursByStaff[p.id] > p.maxWeeklyHours)
+    .map((p) => ({
+      staffId: p.id,
+      hours: hoursByStaff[p.id],
+      maxWeeklyHours: p.maxWeeklyHours,
+      overHours: hoursByStaff[p.id] - p.maxWeeklyHours,
+    }))
   const notes: string[] = []
-  if (shortfalls.length > 0 || unstaffedHours.length > 0) {
-    notes.push("Not enough employee capacity to cover all demand.")
+  if (overMaxStaff.length > 0) {
+    notes.push(
+      `${overMaxStaff.length} employee${overMaxStaff.length === 1 ? " was" : "s were"} scheduled over their maximum weekly hours to cover hours with transactions.`
+    )
+  }
+  if (unstaffedHours.length > 0) {
+    notes.push("No shift template covers some hours with transactions.")
   }
   if (statusName === "FEASIBLE") {
     notes.push(
@@ -319,6 +376,7 @@ export async function generateSchedule(
     shortfalls,
     surplusStaffHours,
     hoursByStaff,
+    overMaxStaff,
     notes,
   }
 }
