@@ -133,8 +133,7 @@ describe("generateSchedule", () => {
     const result = await run(input)
     assertValid(input, result)
     expect(result.status).toBe("optimal")
-    expect(result.shortfalls).toEqual([])
-    console.log("Result", result)
+    expect(result.unstaffedHours).toEqual([])
     for (let d = 0; d < 7; d++) {
       expect(result.assignments.some((a) => a.dayOfWeek === d)).toBe(true)
     }
@@ -163,7 +162,7 @@ describe("generateSchedule", () => {
     }
     const result = await run(input)
     assertValid(input, result)
-    expect(result.shortfalls.length).toBeGreaterThan(0)
+    expect(result.unstaffedHours.length).toBeGreaterThan(0)
     expect(result.notes.join(" ")).toMatch(/capacity/i)
     for (const hours of Object.values(result.hoursByStaff)) {
       expect(hours).toBeLessThanOrEqual(8)
@@ -205,10 +204,54 @@ describe("generateSchedule", () => {
     }
     const result = await run(input)
     assertValid(input, result)
+    expect(result.unstaffedHours.length).toBeGreaterThan(0)
+    for (const u of result.unstaffedHours) {
+      expect(u.transactions).toBeGreaterThan(0)
+    }
+    expect(result.shortfalls).toEqual([]) // no target configured
+    expect(result.surplusStaffHours).toBe(0)
+  })
+
+  it("reports shortfalls only when an explicit target is configured", async () => {
+    const input = {
+      staff: team(2, 20),
+      shifts: OVERLAPPING,
+      transactions: transactions(uniform(75)),
+    }
+    const result = await run(input, 15)
+    assertValid(input, result)
     expect(result.shortfalls.length).toBeGreaterThan(0)
     for (const s of result.shortfalls) {
       expect(s.staffed).toBeLessThan(s.required)
     }
+  })
+
+  it("is scale invariant: only relative demand matters", async () => {
+    const make = (k: number) => ({
+      staff: team(6, [40, 30]),
+      shifts: OVERLAPPING,
+      transactions: transactions((d, h) => k * peaks(d, h)),
+    })
+    const base = await run(make(1))
+    const doubled = await run(make(2))
+    expect(doubled.assignments).toEqual(base.assignments)
+  })
+
+  it("splits scarce capacity roughly in proportion to demand", async () => {
+    const input = {
+      staff: team(6, 24),
+      shifts: OVERLAPPING,
+      transactions: transactions((_d, h) => (h >= 11 && h <= 13 ? 90 : 30)),
+    }
+    const result = await run(input)
+    assertValid(input, result)
+    let peak = 0
+    let quiet = 0
+    for (let d = 0; d < 7; d++) {
+      peak += staffedAt(input, result, d, 12)
+      quiet += staffedAt(input, result, d, 16)
+    }
+    expect(peak).toBeGreaterThan(quiet)
   })
 
   it("returns an empty draft with a note when there is no transaction data", async () => {

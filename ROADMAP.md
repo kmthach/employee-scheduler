@@ -277,12 +277,13 @@ Test scenarios:
 
 Scope notes:
 
-- Algorithm is documented in `algorithm.md`; code is `src/domain/demand.ts` (demand rule, default 15 transactions per staff hour, adjustable) and `src/domain/auto-schedule.ts` (`generateSchedule`, CP-SAT model). Domain only: no UI, store or Vite config changes.
+- Algorithm is documented in `algorithm.md`; code is `src/domain/demand.ts` (transaction grid; optional explicit transactions-per-staff-hour target, no default) and `src/domain/auto-schedule.ts` (`generateSchedule`, CP-SAT model). Domain only: no UI, store or Vite config changes.
 - New dependency: `cp-sat-wasm` (OR-Tools CP-SAT in WebAssembly), validated by a spike in Node and Chromium before adoption. It is imported lazily inside `generateSchedule`, so trivial runs (no demand, no staff) never load WASM.
 - Decisions: the generator treats maximum weekly hours as a hard cap (manual edits may still exceed it with a warning); regeneration ignores existing assignments (Phase 8 decides how to preserve manual work); fairness is the spread of utilization (assigned hours / own maximum); employees with the same maximum are symmetry-broken to speed up solving.
 - Results are deterministic (1 worker, fixed seed, deterministic time limit; default 5 s). When the limit is hit the best valid roster is returned with status `feasible`; an optimal proof is not guaranteed for large, symmetric inputs.
 - Library quirks: `result.status` should be read via `statusName()`; variable values are `bigint`; a "OR-Tools WASM Cloud" banner is printed on first solve.
-- Tests: `demand.test.ts`, `auto-schedule.test.ts` (all roadmap scenarios, determinism, larger 30-employee case, custom demand target).
+- Tests: `demand.test.ts`, `auto-schedule.test.ts` (all roadmap scenarios, determinism, larger 30-employee case, explicit target, scale invariance, proportional allocation).
+- Scope change (follow-up): removed the hardcoded 15 transactions-per-staff-hour target; it was an arbitrary business assumption. Transaction counts are now relative demand weights (concave proportional objective, no labor-cost term, so no hidden threshold). Transactions per staff hour remains an evaluation metric in Coverage. `AutoScheduleResult` gained `unstaffedHours`; `shortfalls`/`surplusStaffHours` only apply if a target is passed explicitly. Consequence: employees are scheduled toward the same % of their maximum hours.
 
 ## Phase 8 — Auto-Scheduling Integration and UX Refinement
 
@@ -294,7 +295,7 @@ Tasks:
 - [ ] Display generated assignments in the roster.
 - [ ] Allow managers to review and edit the generated draft.
 - [ ] Make regeneration behavior explicit.
-- [ ] Display understaffing warnings.
+- [ ] Display understaffing warnings (use `unstaffedHours` from the generator; no target ratio assumed).
 - [ ] Display employee maximum-hours warnings.
 - [ ] Ensure coverage metrics update immediately.
 - [ ] Refine assignment interactions.

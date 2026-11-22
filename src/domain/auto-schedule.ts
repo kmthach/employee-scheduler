@@ -1,6 +1,6 @@
 import type { AssignmentCandidate } from "./assignment"
 import { staffedHours } from "./coverage"
-import { buildDemandGrid } from "./demand"
+import { buildDemandGrid, buildTransactionGrid } from "./demand"
 import { shiftDurationHours, timesOverlap } from "./time"
 import type { DayOfWeek, Shift, Staff, TransactionRecord } from "./types"
 
@@ -9,7 +9,18 @@ import type { DayOfWeek, Shift, Staff, TransactionRecord } from "./types"
  * See algorithm.md for the full description. Pure domain code: no React or Zustand.
  */
 
-/** Objective weights: covering demand ≫ not overstaffing ≫ fairness (utilization spread, ‰). */
+/**
+ * Default mode (no target): transactions are a relative demand signal. The k-th employee in an
+ * hour with a share `s` of the week's transactions earns `DEMAND_SCALE · s / k` (concave, so
+ * capacity spreads in proportion to demand). Only shares matter, never absolute counts.
+ */
+export const DEMAND_SCALE = 1_000_000
+/** Penalty per staffed hour with no transactions. Tiny: only keeps idle hours empty. */
+export const IDLE_WEIGHT = 1
+/** Cost of one permille of utilization spread, relative to the demand gains above. A tuning knob. */
+export const FAIRNESS_WEIGHT = 100
+
+/** Explicit-target mode only: covering demand ≫ not overstaffing ≫ fairness. */
 export const SHORTFALL_WEIGHT = 10_000
 export const SURPLUS_WEIGHT = 300
 export const SPREAD_WEIGHT = 1
@@ -24,7 +35,10 @@ export interface AutoScheduleInput {
 }
 
 export interface AutoScheduleOptions {
-  /** Demand rule: required staff = ceil(transactions / this). Default 15. */
+  /**
+   * Optional explicit target: required staff = ceil(transactions / this). Omitted by default;
+   * without it, transaction counts only act as relative demand weights.
+   */
   transactionsPerStaffHour?: number
   /** "worker" keeps the UI responsive (default); "direct" blocks but is simpler in tests. */
   executor?: "worker" | "direct"
@@ -40,14 +54,22 @@ export interface Shortfall {
   staffed: number
 }
 
+export interface UnstaffedHour {
+  dayOfWeek: DayOfWeek
+  hour: number
+  transactions: number
+}
+
 export interface AutoScheduleResult {
   /** IDs and scheduleId are added by the caller. */
   assignments: AssignmentCandidate[]
   /** "optimal" = proven best; "feasible" = time limit hit, best found (still valid). */
   status: "optimal" | "feasible"
-  /** Hours that remain understaffed, e.g. when capacity is insufficient. */
+  /** Hours with transactions but nobody staffed (same marker as Coverage "No staff"). */
+  unstaffedHours: UnstaffedHour[]
+  /** Explicit-target mode only: hours below the required level. Empty otherwise. */
   shortfalls: Shortfall[]
-  /** Staff-hours above the required level (across every hour a shift touches). */
+  /** Explicit-target mode only: staff-hours above the required level. 0 otherwise. */
   surplusStaffHours: number
   hoursByStaff: Record<string, number>
   notes: string[]
@@ -57,6 +79,7 @@ function emptyResult(staff: Staff[], notes: string[]): AutoScheduleResult {
   return {
     assignments: [],
     status: "optimal",
+    unstaffedHours: [],
     shortfalls: [],
     surplusStaffHours: 0,
     hoursByStaff: Object.fromEntries(staff.map((s) => [s.id, 0])),
@@ -68,14 +91,15 @@ export async function generateSchedule(
   input: AutoScheduleInput,
   options: AutoScheduleOptions = {}
 ): Promise<AutoScheduleResult> {
-  const demand = buildDemandGrid(
-    input.transactions,
-    options.transactionsPerStaffHour
-  )
+  const target = options.transactionsPerStaffHour
+  const explicit = target !== undefined
+  const txGrid = buildTransactionGrid(input.transactions)
+  const demand = explicit ? buildDemandGrid(input.transactions, target) : txGrid
+  const totalTx = txGrid.flat().reduce((n, v) => n + v, 0)
   const people = input.staff.filter((s) => s.maxWeeklyHours > 0)
   const shifts = input.shifts.filter((s) => shiftDurationHours(s) > 0)
 
-  if (!demand.some((day) => day.some((n) => n > 0))) {
+  if (totalTx <= 0) {
     return emptyResult(input.staff, ["No transaction demand to schedule for."])
   }
   if (people.length === 0) {
@@ -141,7 +165,7 @@ export async function generateSchedule(
     lastWithMax.set(person.maxWeeklyHours, p)
   })
 
-  // Soft: coverage per (day, hour).
+  // Soft: demand per (day, hour).
   const objVars: Array<
     ReturnType<typeof model.newIntVar> | ReturnType<typeof model.newBoolVar>
   > = []
@@ -155,6 +179,30 @@ export async function generateSchedule(
         }
       }
       if (terms.length === 0) continue
+      const tx = txGrid[d][h]
+      if (!explicit) {
+        if (tx <= 0) {
+          // No transactions: staffing this hour has no demand value.
+          for (const v of terms) {
+            objVars.push(v)
+            objCoeffs.push(IDLE_WEIGHT)
+          }
+          continue
+        }
+        // Diminishing returns: k-th employee earns DEMAND_SCALE · share / k.
+        const staffed = LinearExpr.from(LinearExpr.sum(terms))
+        const covered = []
+        for (let k = 1; k <= people.length; k++) {
+          const gain = Math.round((DEMAND_SCALE * tx) / (totalTx * k))
+          if (gain <= 0) break
+          const c = model.newBoolVar(`cov_${d}_${h}_${k}`)
+          covered.push(c)
+          objVars.push(c)
+          objCoeffs.push(-gain)
+        }
+        model.add(LinearExpr.from(LinearExpr.sum(covered)).le(staffed))
+        continue
+      }
       const required = demand[d][h]
       const staffed = LinearExpr.from(LinearExpr.sum(terms))
       if (required > 0) {
@@ -178,7 +226,8 @@ export async function generateSchedule(
     model.add(minUtil.minus(u).le(0))
   }
   objVars.push(maxUtil, minUtil)
-  objCoeffs.push(SPREAD_WEIGHT, -SPREAD_WEIGHT)
+  const spreadWeight = explicit ? SPREAD_WEIGHT : FAIRNESS_WEIGHT
+  objCoeffs.push(spreadWeight, -spreadWeight)
 
   model.minimize(weightedSum(objVars, objCoeffs))
 
@@ -222,9 +271,18 @@ export async function generateSchedule(
     }
   }
   const shortfalls: Shortfall[] = []
+  const unstaffedHours: UnstaffedHour[] = []
   let surplusStaffHours = 0
   for (const d of days) {
     for (let h = 0; h < 24; h++) {
+      if (txGrid[d][h] > 0 && staffed[d][h] === 0) {
+        unstaffedHours.push({
+          dayOfWeek: d,
+          hour: h,
+          transactions: txGrid[d][h],
+        })
+      }
+      if (!explicit) continue
       const required = demand[d][h]
       if (staffed[d][h] < required) {
         shortfalls.push({
@@ -245,7 +303,7 @@ export async function generateSchedule(
     hoursByStaff[a.staffId] += shiftDurationHours(shiftById.get(a.shiftId)!)
   }
   const notes: string[] = []
-  if (shortfalls.length > 0) {
+  if (shortfalls.length > 0 || unstaffedHours.length > 0) {
     notes.push("Not enough employee capacity to cover all demand.")
   }
   if (statusName === "FEASIBLE") {
@@ -257,6 +315,7 @@ export async function generateSchedule(
   return {
     assignments,
     status: statusName === "OPTIMAL" ? "optimal" : "feasible",
+    unstaffedHours,
     shortfalls,
     surplusStaffHours,
     hoursByStaff,
