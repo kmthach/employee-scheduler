@@ -238,33 +238,33 @@ Tasks:
 - Added the shadcn `card` component.
 - Follow-up: the Roster and Summary are separate tabs (shadcn `tabs` added). Publish bar and the Upload transactions / Shifts buttons stay above the tabs; Daily Coverage and Weekly Summary live in the Summary tab. Selected tab is local UI state.
 
-## Phase 7 — Auto-Scheduling Algorithm
+## Phase 7 — Auto-Scheduling Algorithm ✅ Complete
 
 **Goal:** Generate a sensible draft roster based on demand and employee constraints.
 
 Tasks:
 
-- [ ] Define a demand-to-staffing conversion rule.
-- [ ] Document the selected assumptions.
-- [ ] Define scheduling input and output types.
-- [ ] Implement employee maximum-hours constraints.
-- [ ] Implement employee overlap constraints.
-- [ ] Implement demand coverage evaluation.
-- [ ] Implement fairness evaluation.
-- [ ] Generate assignments across all seven days.
-- [ ] Handle insufficient staffing capacity.
-- [ ] Write unit tests for the scheduling algorithm.
+- [x] Define a demand-to-staffing conversion rule.
+- [x] Document the selected assumptions (see `algorithm.md`: demand rule, hard hour cap, objective weights, fairness definition; solver choice `cp-sat-wasm` validated by spike).
+- [x] Define scheduling input and output types.
+- [x] Implement employee maximum-hours constraints.
+- [x] Implement employee overlap constraints.
+- [x] Implement demand coverage evaluation.
+- [x] Implement fairness evaluation.
+- [x] Generate assignments across all seven days.
+- [x] Handle insufficient staffing capacity.
+- [x] Write unit tests for the scheduling algorithm.
 
 Test scenarios:
 
-- [ ] Uniform demand throughout the week.
-- [ ] High demand during lunch or dinner.
-- [ ] Very low employee capacity.
-- [ ] Employees with different maximum weekly hours.
-- [ ] Overlapping shift templates.
-- [ ] Insufficient staff to cover demand.
-- [ ] No transaction data.
-- [ ] Zero transaction counts.
+- [x] Uniform demand throughout the week.
+- [x] High demand during lunch or dinner.
+- [x] Very low employee capacity.
+- [x] Employees with different maximum weekly hours.
+- [x] Overlapping shift templates.
+- [x] Insufficient staff to cover demand.
+- [x] No transaction data.
+- [x] Zero transaction counts.
 
 **Completion criteria:**
 
@@ -274,6 +274,15 @@ Test scenarios:
 - Busy hours receive more staffing than quieter hours when feasible.
 - Work is distributed reasonably fairly.
 - Algorithm works independently of React and Zustand.
+
+Scope notes:
+
+- Algorithm is documented in `algorithm.md`; code is `src/domain/demand.ts` (demand rule, default 15 transactions per staff hour, adjustable) and `src/domain/auto-schedule.ts` (`generateSchedule`, CP-SAT model). Domain only: no UI, store or Vite config changes.
+- New dependency: `cp-sat-wasm` (OR-Tools CP-SAT in WebAssembly), validated by a spike in Node and Chromium before adoption. It is imported lazily inside `generateSchedule`, so trivial runs (no demand, no staff) never load WASM.
+- Decisions: the generator treats maximum weekly hours as a hard cap (manual edits may still exceed it with a warning); regeneration ignores existing assignments (Phase 8 decides how to preserve manual work); fairness is the spread of utilization (assigned hours / own maximum); employees with the same maximum are symmetry-broken to speed up solving.
+- Results are deterministic (1 worker, fixed seed, deterministic time limit; default 5 s). When the limit is hit the best valid roster is returned with status `feasible`; an optimal proof is not guaranteed for large, symmetric inputs.
+- Library quirks: `result.status` should be read via `statusName()`; variable values are `bigint`; a "OR-Tools WASM Cloud" banner is printed on first solve.
+- Tests: `demand.test.ts`, `auto-schedule.test.ts` (all roadmap scenarios, determinism, larger 30-employee case, custom demand target).
 
 ## Phase 8 — Auto-Scheduling Integration and UX Refinement
 
@@ -290,6 +299,10 @@ Tasks:
 - [ ] Ensure coverage metrics update immediately.
 - [ ] Refine assignment interactions.
 - [ ] Improve empty, loading, and error states.
+- [ ] Configure Vite for `cp-sat-wasm`: `optimizeDeps.exclude: ['cp-sat-wasm']`, `include: ['protobufjs']`, `worker.format: 'es'`, and COOP/COEP headers on `server` and `preview` (verified in Chromium; Firefox/Safari untested).
+- [ ] Confirm the production host can send COOP/COEP headers (e.g. GitHub Pages cannot) and that other assets stay compatible.
+- [ ] Run the solver with `executor: 'worker'`, support cancel via `AbortSignal`, and show loading/error states; the WASM download is about 2.7 MB gzip in Chromium.
+- [ ] Decide how regeneration treats existing manual assignments.
 
 **Completion criteria:**
 
