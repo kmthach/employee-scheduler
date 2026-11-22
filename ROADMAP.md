@@ -175,20 +175,20 @@ Tasks:
 - Employee conflicts are prevented.
 - Weekly hours update immediately after edits.
 
-## Phase 5 — Transaction CSV Import
+## Phase 5 — Transaction CSV Import ✅ Complete (manual browser check pending)
 
 **Goal:** Import and display weekly demand data.
 
 Tasks:
 
-- [ ] Inspect the supplied CSV file.
-- [ ] Understand its exact column and row structure.
-- [ ] Implement CSV parsing using Papa Parse.
-- [ ] Validate the imported data.
-- [ ] Handle missing, invalid, or duplicate hourly records.
-- [ ] Map transactions to Monday–Sunday and hourly time slots.
-- [ ] Display imported demand data.
-- [ ] Allow users to replace the imported report.
+- [x] Inspect the supplied CSV file.
+- [x] Understand its exact column and row structure.
+- [x] Implement CSV parsing using Papa Parse.
+- [x] Validate the imported data.
+- [x] Handle missing, invalid, or duplicate hourly records.
+- [x] Map transactions to Monday–Sunday and hourly time slots.
+- [x] Display imported demand data.
+- [x] Allow users to replace the imported report.
 
 **Completion criteria:**
 
@@ -196,6 +196,15 @@ Tasks:
 - Hourly transaction counts are mapped to the correct days and hours.
 - Invalid files produce understandable errors.
 - Imported data can be reviewed.
+
+**Scope notes / changes:**
+
+- Added an "Upload transactions" dialog: it starts with an empty state (CSV template download + upload); the editable hour × Monday–Sunday table appears only after an upload (or when saved data exists) so users can correct individual counts. Changes apply only on Save, Cancel discards them.
+- The sample CSV has a title row and Friday–Thursday columns, so columns are mapped by weekday name (dates are informational only).
+- Transactions are stored per schedule outside draft/publish snapshots; saving them does not turn a published schedule into a draft.
+- Transaction data enters only through CSV upload; the table is a read-only review. The template contains a single example row (8am) — add other hours as rows in the CSV. An "Export transactions" button downloads the table as CSV named with the week's start and end dates (`transactions_<monday>_<sunday>.csv`).
+- The template and table headers follow the sample layout: title row with the schedule's date range (e.g. `Aug 10, 2026 - Aug 16, 2026`), dated day headers (`Mon, 10 Aug`), hour rows, BOM + CRLF. The dialog title shows the schedule duration.
+- Persistence is still deferred to Phase 9. Hours absent from the data have no record.
 
 ## Phase 6 — Coverage Analysis and Aggregated Summary
 

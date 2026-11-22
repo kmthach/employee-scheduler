@@ -31,6 +31,7 @@ import type {
   ScheduleContent,
   Shift,
   Staff,
+  TransactionRecord,
 } from "@/domain/types"
 
 export interface ShiftActionResult extends ShiftValidation {
@@ -49,6 +50,9 @@ interface ScheduleState {
    * schedule has pending changes, its last published content is kept here until publish/discard.
    */
   publishedSnapshots: Record<string, ScheduleContent>
+  /** Demand data per schedule. Not roster content, so it is outside draft/publish snapshots. */
+  transactions: TransactionRecord[]
+  transactionReports: Record<string, TransactionReport>
   goToPreviousWeek: () => void
   goToNextWeek: () => void
   goToCurrentWeek: () => void
@@ -67,10 +71,23 @@ interface ScheduleState {
   restoreAssignment: (candidate: AssignmentCandidate) => AssignmentCheck
   changeAssignmentShift: (id: string, shiftId: string) => AssignmentCheck
   removeAssignment: (id: string) => void
+  /** Replaces the current schedule's transaction dataset. */
+  saveTransactions: (
+    records: TransactionRecord[],
+    report: TransactionReport
+  ) => void
+  clearTransactions: () => void
   /** Publishes the viewed week's draft. Blocked (state unchanged) while assignments overlap. */
   publishSchedule: () => PublishValidation
   /** Throws away pending changes to a published schedule, restoring its published content. */
   discardDraft: () => void
+}
+
+export interface TransactionReport {
+  /** Source file name, or null when entered manually. */
+  fileName: string | null
+  reportRange?: string
+  savedAt: string
 }
 
 const todayId = getScheduleId(new Date())
@@ -121,6 +138,8 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
   shifts: [],
   assignments: [],
   publishedSnapshots: {},
+  transactions: [],
+  transactionReports: {},
 
   goToPreviousWeek: () =>
     set((s) => ({ currentScheduleId: moveWeek(s.currentScheduleId, -1) })),
@@ -309,6 +328,31 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
         ...markChanged(s, target.scheduleId),
       }
     }),
+
+  saveTransactions: (records, report) =>
+    set((s) => {
+      const id = s.currentScheduleId
+      if (!s.schedules.some((x) => x.id === id)) return s
+      return {
+        transactions: [
+          ...s.transactions.filter((t) => t.scheduleId !== id),
+          ...records.filter((t) => t.scheduleId === id),
+        ],
+        transactionReports: { ...s.transactionReports, [id]: report },
+      }
+    }),
+
+  clearTransactions: () =>
+    set((s) => ({
+      transactions: s.transactions.filter(
+        (t) => t.scheduleId !== s.currentScheduleId
+      ),
+      transactionReports: Object.fromEntries(
+        Object.entries(s.transactionReports).filter(
+          ([key]) => key !== s.currentScheduleId
+        )
+      ),
+    })),
 
   publishSchedule: () => {
     const s = get()

@@ -56,6 +56,8 @@ beforeEach(() => {
       asg("3", "B", "s2", "bm"),
     ],
     publishedSnapshots: {},
+    transactions: [],
+    transactionReports: {},
   })
 })
 
@@ -348,5 +350,56 @@ describe("draft and published status", () => {
     const r = useScheduleStore.getState().publishSchedule()
     expect(r.ok).toBe(true)
     expect(r.overMax).toHaveLength(1)
+  })
+})
+
+describe("transactions", () => {
+  const rec = (id: string, scheduleId: string, count: number) => ({
+    id,
+    scheduleId,
+    dayOfWeek: 0 as const,
+    hour: 9,
+    transactionCount: count,
+  })
+  const report = { fileName: null, savedAt: "t" }
+
+  it("replaces the dataset for the current schedule only", () => {
+    const { saveTransactions } = useScheduleStore.getState()
+    saveTransactions([rec("1", "A", 5), rec("2", "A", 6)], report)
+    useScheduleStore.setState({ currentScheduleId: "B" })
+    useScheduleStore.getState().saveTransactions([rec("3", "B", 9)], report)
+    useScheduleStore.setState({ currentScheduleId: "A" })
+    useScheduleStore.getState().saveTransactions([rec("4", "A", 7)], report)
+    const ids = useScheduleStore
+      .getState()
+      .transactions.map((t) => t.id)
+      .sort()
+    expect(ids).toEqual(["3", "4"])
+  })
+
+  it("ignores saves for a week with no schedule", () => {
+    useScheduleStore.setState({ currentScheduleId: "Z" })
+    useScheduleStore.getState().saveTransactions([rec("1", "Z", 1)], report)
+    expect(useScheduleStore.getState().transactions).toEqual([])
+  })
+
+  it("does not turn a published schedule into a draft", () => {
+    useScheduleStore.setState({
+      schedules: [sched("A", "published"), sched("B")],
+    })
+    useScheduleStore.getState().saveTransactions([rec("1", "A", 1)], report)
+    expect(useScheduleStore.getState().schedules[0].status).toBe("published")
+    expect(useScheduleStore.getState().publishedSnapshots).toEqual({})
+  })
+
+  it("clears only the current schedule", () => {
+    useScheduleStore.setState({
+      transactions: [rec("1", "A", 1), rec("2", "B", 2)],
+      transactionReports: { A: report, B: report },
+    })
+    useScheduleStore.getState().clearTransactions()
+    const s = useScheduleStore.getState()
+    expect(s.transactions.map((t) => t.id)).toEqual(["2"])
+    expect(Object.keys(s.transactionReports)).toEqual(["B"])
   })
 })
