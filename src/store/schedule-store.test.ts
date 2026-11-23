@@ -486,6 +486,17 @@ describe("auto-schedule apply and undo", () => {
     expect(inA().map((a) => a.id)).toEqual(["1", "2"])
   })
 
+  it("records the published assignments it replaced, cleared on discard", () => {
+    useScheduleStore.setState({
+      schedules: [sched("A", "published"), sched("B")],
+    })
+    useScheduleStore.getState().applyGeneratedAssignments(generated)
+    const keys = useScheduleStore.getState().autoRemovedKeys.A
+    expect(keys).toHaveLength(2)
+    useScheduleStore.getState().discardDraft()
+    expect(useScheduleStore.getState().autoRemovedKeys.A).toBeUndefined()
+  })
+
   it("does nothing when the viewed week has no schedule", () => {
     useScheduleStore.setState({ currentScheduleId: "Z" })
     useScheduleStore.getState().applyGeneratedAssignments(generated)

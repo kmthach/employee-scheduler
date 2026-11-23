@@ -22,7 +22,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { getWeekDays, isToday } from "@/domain/date"
-import { diffAssignments } from "@/domain/draft"
+import { assignmentKey, diffAssignments } from "@/domain/draft"
+import { useScheduleStore } from "@/store/schedule-store"
 import {
   getAssignedHours,
   getDailyAssignedHours,
@@ -91,9 +92,20 @@ export function RosterGrid({
   )
   const dailyTotals = getDailyAssignedHours(assignments, shifts)
   const weekTotal = dailyTotals.reduce((n, h) => n + h, 0)
-  const diff = published
+  const autoRemoved = useScheduleStore((s) => s.autoRemovedKeys[scheduleId])
+  const rawDiff = published
     ? diffAssignments(published.assignments, assignments)
     : undefined
+  // Assignments replaced by auto-schedule just disappear; only manual removals show as pending.
+  const diff =
+    rawDiff && autoRemoved
+      ? {
+          ...rawDiff,
+          removed: rawDiff.removed.filter(
+            (a) => !autoRemoved.includes(assignmentKey(a))
+          ),
+        }
+      : rawDiff
   const shiftColor = (shiftId: string) => {
     const index = sortedShifts.findIndex((s) => s.id === shiftId)
     return SHIFT_COLORS[Math.max(index, 0) % SHIFT_COLORS.length]

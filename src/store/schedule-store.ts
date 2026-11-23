@@ -13,7 +13,12 @@ import {
   updateAssignment,
 } from "@/domain/assignment"
 import type { AssignmentCandidate, AssignmentCheck } from "@/domain/assignment"
-import { getContent, replaceContent, validateForPublish } from "@/domain/draft"
+import {
+  assignmentKey,
+  getContent,
+  replaceContent,
+  validateForPublish,
+} from "@/domain/draft"
 import type { PublishValidation } from "@/domain/draft"
 import {
   copyScheduleContent,
@@ -65,6 +70,12 @@ interface ScheduleState {
    * change to any schedule (see `markChanged`), so Undo never overwrites later manual edits.
    */
   autoScheduleUndo: { scheduleId: string; assignments: Assignment[] } | null
+  /**
+   * Per schedule: keys (`assignmentKey`) of published assignments that auto-schedule replaced.
+   * The roster does not show these as "pending removal" (only manual removals are shown). Cleared
+   * when the draft is published, discarded or undone.
+   */
+  autoRemovedKeys: Record<string, string[]>
   /**
    * Transactions per employee-hour chosen in the Auto-schedule dialog, per schedule. A schedule
    * without an entry uses the default (15). A generation input, not roster content, so it is
@@ -165,6 +176,10 @@ function markChanged(
   }
 }
 
+function withoutKey<T>(record: Record<string, T>, id: string) {
+  return Object.fromEntries(Object.entries(record).filter(([k]) => k !== id))
+}
+
 function withoutSnapshot(
   snapshots: Record<string, ScheduleContent>,
   id: string
@@ -183,6 +198,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
   assignments: [],
   publishedSnapshots: {},
   autoScheduleUndo: null,
+  autoRemovedKeys: {},
   transactionsPerStaffHour: {},
   transactions: [],
   transactionReports: {},
@@ -439,9 +455,22 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
   applyGeneratedAssignments: (candidates) =>
     set((s) => {
       const id = s.currentScheduleId
-      if (!s.schedules.some((x) => x.id === id)) return s
+      const schedule = s.schedules.find((x) => x.id === id)
+      if (!schedule) return s
+      const publishedAssignments =
+        s.publishedSnapshots[id]?.assignments ??
+        (schedule.status === "published"
+          ? s.assignments.filter((a) => a.scheduleId === id)
+          : [])
+      const generatedKeys = new Set(candidates.map(assignmentKey))
       return {
         ...markChanged(s, id),
+        autoRemovedKeys: {
+          ...s.autoRemovedKeys,
+          [id]: publishedAssignments
+            .map(assignmentKey)
+            .filter((k) => !generatedKeys.has(k)),
+        },
         assignments: replaceAssignments(s.assignments, id, candidates, () =>
           crypto.randomUUID()
         ),
@@ -463,6 +492,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
           ...undo.assignments,
         ],
         autoScheduleUndo: null,
+        autoRemovedKeys: withoutKey(s.autoRemovedKeys, undo.scheduleId),
       }
     }),
 
@@ -512,6 +542,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
       return { ...result, ok: false }
     set({
       publishedSnapshots: withoutSnapshot(s.publishedSnapshots, id),
+      autoRemovedKeys: withoutKey(s.autoRemovedKeys, id),
       schedules: s.schedules.map((x) =>
         x.id === id
           ? { ...x, status: "published", updatedAt: new Date().toISOString() }
@@ -529,6 +560,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
       return {
         ...replaceContent(s, id, snapshot),
         publishedSnapshots: withoutSnapshot(s.publishedSnapshots, id),
+        autoRemovedKeys: withoutKey(s.autoRemovedKeys, id),
         schedules: s.schedules.map((x) =>
           x.id === id
             ? { ...x, status: "published", updatedAt: new Date().toISOString() }
