@@ -30,8 +30,9 @@ export function DayCoverageTable({ day }: { day: DayCoverage }) {
           <tr
             key={row.hour}
             className={cn(
-              "border-b border-border/40",
-              row.shortfall > 0 && "bg-amber-50 dark:bg-amber-950/30"
+              "border-b border-border",
+              // Row tint only for severe shortages; the pill carries the warning otherwise.
+              row.shortfall >= 3 && "bg-amber-50/60 dark:bg-amber-950/20"
             )}
           >
             <td className="px-2 py-1.5 font-medium">{hourLabel(row.hour)}</td>
@@ -47,11 +48,11 @@ export function DayCoverageTable({ day }: { day: DayCoverage }) {
               {row.staffHours}
               {row.shortfall > 0 && (
                 <span
-                  className="ml-1 font-medium text-amber-700 dark:text-amber-400"
-                  title={`Needs ${row.required}, has ${row.staffHours}`}
-                  aria-label={`Needs ${row.required}, has ${row.staffHours}`}
+                  className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+                  title={`${row.shortfall} more staff needed to meet target ratio`}
+                  aria-label={`${row.shortfall} more staff needed to meet target ratio`}
                 >
-                  -{row.shortfall}
+                  (-{row.shortfall})
                 </span>
               )}
             </td>
@@ -69,10 +70,10 @@ export function DayCoverageTable({ day }: { day: DayCoverage }) {
             {day.totals.staffHours}
             {day.totals.shortfall > 0 && (
               <span
-                className="ml-1 text-amber-700 dark:text-amber-400"
+                className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
                 title={`${day.totals.shortfall} understaffed hours`}
               >
-                -{day.totals.shortfall}
+                (-{day.totals.shortfall})
               </span>
             )}
           </td>

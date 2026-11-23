@@ -52,10 +52,7 @@ export function ShiftTemplatesDialog({
           <DialogHeader>
             <DialogTitle>Shift templates</DialogTitle>
             <DialogDescription>
-              Reusable shifts for this schedule. Several employees can share a
-              shift, and different shifts may overlap. A longer shift can put
-              employees over their maximum weekly hours; that is highlighted and
-              blocks publishing until fixed.
+              Reusable shifts for this schedule.
             </DialogDescription>
           </DialogHeader>
 

@@ -117,13 +117,11 @@ export function AssignmentCell({
           title="Remove"
           onClick={() => removeAssignment(a.id)}
           className={cn(
-            "absolute top-1/2 right-1 flex size-5 -translate-y-1/2 items-center justify-center rounded-full opacity-0 transition-all outline-none group-hover/assignment:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring",
-            isNew
-              ? "bg-black/10 text-[#1f1f1f] hover:bg-black/25 dark:bg-white/15 dark:text-[#e3e3e3] dark:hover:bg-white/30"
-              : "bg-black/25 text-white hover:bg-black/50"
+            "absolute top-1/2 right-1.5 flex size-4 -translate-y-1/2 items-center justify-center rounded-full opacity-0 transition-all outline-none group-hover/assignment:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring",
+            "text-current/70 hover:bg-black/10 hover:text-current dark:hover:bg-white/20"
           )}
         >
-          <X className="size-3.5" strokeWidth={3} />
+          <X className="size-3" strokeWidth={2} />
         </button>
       </div>
     )

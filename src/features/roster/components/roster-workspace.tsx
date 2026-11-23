@@ -4,7 +4,7 @@ import { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/empty-state"
 import { computeCoverage } from "@/domain/coverage"
-import { formatWeekRange } from "@/domain/date"
+import { formatWeekRange, getWeekDays } from "@/domain/date"
 import {
   findSourceScheduleId,
   getDefaultSetup,
@@ -12,6 +12,7 @@ import {
 } from "@/domain/schedule"
 import { filterBySchedule } from "@/domain/schedule-data"
 import type { Staff } from "@/domain/types"
+import { DayCoverageDrawer } from "@/features/coverage/components/day-coverage-drawer"
 import { WeeklySummary } from "@/features/coverage/components/weekly-summary"
 import { DeleteStaffDialog } from "@/features/staff/components/delete-staff-dialog"
 import { ShiftTemplatesDialog } from "@/features/shifts/components/shift-templates-dialog"
@@ -63,6 +64,7 @@ export function RosterWorkspace() {
   const [shiftsOpen, setShiftsOpen] = useState(false)
   const [transactionsOpen, setTransactionsOpen] = useState(false)
   const [newScheduleOpen, setNewScheduleOpen] = useState(false)
+  const [openDay, setOpenDay] = useState<number | null>(null)
 
   const staff = useMemo(
     () => filterBySchedule(allStaff, scheduleId),
@@ -151,105 +153,124 @@ export function RosterWorkspace() {
     )
   }
 
+  const drawerDay = openDay !== null && transactions.length > 0 ? openDay : null
+
   return (
-    <main className="flex h-svh flex-col gap-4 bg-calendar p-6">
-      <PublishBar
-        schedule={schedule}
-        staff={staff}
-        shifts={shifts}
-        assignments={assignments}
-        leading={<WeekSelector />}
-        actions={
-          <>
-            <Button
-              variant="ghost"
-              className="h-9 rounded-md"
-              onClick={() => setTransactionsOpen(true)}
-            >
-              <Upload /> Upload transactions
-            </Button>
-            <Button
-              variant="ghost"
-              className="h-9 rounded-md"
-              onClick={() => setShiftsOpen(true)}
-            >
-              <Clock /> Shifts
-            </Button>
-            <div className="mx-1 h-5 w-px bg-border" aria-hidden />
-            <AutoScheduleButton
-              auto={auto}
-              scheduleId={scheduleId}
-              staffCount={staff.length}
-              shiftCount={shifts.length}
-              hasTransactions={transactions.length > 0}
-              assignmentCount={assignments.length}
-              isPublished={
-                published !== undefined || schedule.status === "published"
-              }
-            />
-          </>
-        }
-      />
-      <div className="flex min-h-0 flex-1 flex-col gap-4">
-        <WeeklySummary
-          week={transactions.length > 0 ? coverage.week : null}
-        />
-        <AutoScheduleError auto={auto} />
-        <OverMaxAlert staff={staff} shifts={shifts} assignments={assignments} />
-        <RosterGrid
-          scheduleId={scheduleId}
+    <div className="flex h-svh bg-calendar">
+      <main className="flex min-w-0 flex-1 flex-col gap-4 p-6">
+        <PublishBar
+          schedule={schedule}
           staff={staff}
           shifts={shifts}
           assignments={assignments}
-          published={published}
-          coverage={transactions.length > 0 ? coverage : undefined}
-          onOpenShifts={() => setShiftsOpen(true)}
-          onAddStaff={() => {
-            setEditing(null)
-            setFormOpen(true)
-          }}
-          onDeleteStaff={setDeleting}
-          onEditStaff={(s) => {
-            setEditing(s)
-            setFormOpen(true)
+          leading={<WeekSelector />}
+          actions={
+            <>
+              <Button
+                variant="ghost"
+                className="h-9 rounded-md"
+                onClick={() => setTransactionsOpen(true)}
+              >
+                <Upload /> Upload transactions
+              </Button>
+              <Button
+                variant="ghost"
+                className="h-9 rounded-md"
+                onClick={() => setShiftsOpen(true)}
+              >
+                <Clock /> Shifts
+              </Button>
+              <div className="mx-1 h-5 w-px bg-border" aria-hidden />
+              <AutoScheduleButton
+                auto={auto}
+                scheduleId={scheduleId}
+                staffCount={staff.length}
+                shiftCount={shifts.length}
+                hasTransactions={transactions.length > 0}
+                assignmentCount={assignments.length}
+                isPublished={
+                  published !== undefined || schedule.status === "published"
+                }
+              />
+            </>
+          }
+        />
+        <div className="flex min-h-0 flex-1 flex-col gap-4">
+          <WeeklySummary
+            week={transactions.length > 0 ? coverage.week : null}
+          />
+          <AutoScheduleError auto={auto} />
+          <OverMaxAlert
+            staff={staff}
+            shifts={shifts}
+            assignments={assignments}
+          />
+          <RosterGrid
+            scheduleId={scheduleId}
+            staff={staff}
+            shifts={shifts}
+            assignments={assignments}
+            published={published}
+            coverage={transactions.length > 0 ? coverage : undefined}
+            selectedDay={drawerDay}
+            onSelectDay={setOpenDay}
+            onOpenShifts={() => setShiftsOpen(true)}
+            onAddStaff={() => {
+              setEditing(null)
+              setFormOpen(true)
+            }}
+            onDeleteStaff={setDeleting}
+            onEditStaff={(s) => {
+              setEditing(s)
+              setFormOpen(true)
+            }}
+          />
+        </div>
+
+        <TransactionsDialog
+          open={transactionsOpen}
+          onOpenChange={setTransactionsOpen}
+          scheduleId={scheduleId}
+          saved={transactions}
+          report={report}
+        />
+        <ShiftTemplatesDialog
+          open={shiftsOpen}
+          onOpenChange={setShiftsOpen}
+          shifts={shifts}
+          assignments={assignments}
+        />
+        <StaffFormDialog
+          open={formOpen}
+          onOpenChange={setFormOpen}
+          staff={editing}
+          onSubmit={(inputs) =>
+            editing ? updateStaff(editing.id, inputs[0]) : addStaffMany(inputs)
+          }
+        />
+        <DeleteStaffDialog
+          staff={deleting}
+          assignmentCount={
+            deleting
+              ? assignments.filter((a) => a.staffId === deleting.id).length
+              : 0
+          }
+          onOpenChange={(open) => !open && setDeleting(null)}
+          onConfirm={(id) => {
+            deleteStaff(id)
+            setDeleting(null)
           }}
         />
-      </div>
-
-      <TransactionsDialog
-        open={transactionsOpen}
-        onOpenChange={setTransactionsOpen}
-        scheduleId={scheduleId}
-        saved={transactions}
-        report={report}
-      />
-      <ShiftTemplatesDialog
-        open={shiftsOpen}
-        onOpenChange={setShiftsOpen}
-        shifts={shifts}
-        assignments={assignments}
-      />
-      <StaffFormDialog
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        staff={editing}
-        onSubmit={(inputs) =>
-          editing ? updateStaff(editing.id, inputs[0]) : addStaffMany(inputs)
-        }
-      />
-      <DeleteStaffDialog
-        staff={deleting}
-        assignmentCount={
-          deleting
-            ? assignments.filter((a) => a.staffId === deleting.id).length
-            : 0
-        }
-        onOpenChange={(open) => !open && setDeleting(null)}
-        onConfirm={(id) => {
-          deleteStaff(id)
-          setDeleting(null)
-        }}
-      />
-    </main>
+      </main>
+      {drawerDay !== null && (
+        <DayCoverageDrawer
+          onOpenChange={(open) => !open && setOpenDay(null)}
+          date={getWeekDays(scheduleId)[drawerDay]}
+          day={coverage.days[drawerDay]}
+            onPrev={drawerDay > 0 ? () => setOpenDay(drawerDay - 1) : undefined}
+          onNext={drawerDay < 6 ? () => setOpenDay(drawerDay + 1) : undefined}
+        />
+      )}
+    </div>
   )
 }

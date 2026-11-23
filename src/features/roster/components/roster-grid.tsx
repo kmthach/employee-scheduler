@@ -6,8 +6,6 @@ import {
   Trash2,
 } from "lucide-react"
 
-import { useState } from "react"
-
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -43,7 +41,6 @@ import type {
   Shift,
   Staff,
 } from "@/domain/types"
-import { DayCoverageDrawer } from "@/features/coverage/components/day-coverage-drawer"
 import { cn } from "@/lib/utils"
 
 import { AssignmentCell } from "./assignment-cell"
@@ -57,16 +54,20 @@ interface Props {
   published?: ScheduleContent
   /** Hourly coverage per day; when set, day headers open that day's coverage drawer. */
   coverage?: WeekCoverage
+  /** Day (0 = Monday) the coverage drawer is inspecting; its column header is highlighted. */
+  selectedDay?: number | null
+  onSelectDay?: (dayIndex: number) => void
   onAddStaff: () => void
   onOpenShifts: () => void
   onEditStaff: (staff: Staff) => void
   onDeleteStaff: (staff: Staff) => void
 }
 
+// Soft tinted surface, dark text, 3px left accent bar (indigo, emerald, violet).
 const SHIFT_COLORS = [
-  "border-transparent bg-[#3f51b5] text-white",
-  "border-transparent bg-[#0b8043] text-white",
-  "border-transparent bg-[#8e24aa] text-white",
+  "border-transparent border-l-[3px] border-l-[#4F46E5] bg-[#EEF2FF] text-[#3730A3] dark:bg-[#4F46E5]/20 dark:text-[#C7D2FE]",
+  "border-transparent border-l-[3px] border-l-[#059669] bg-[#ECFDF5] text-[#065F46] dark:bg-[#059669]/20 dark:text-[#A7F3D0]",
+  "border-transparent border-l-[3px] border-l-[#7C3AED] bg-[#F5F3FF] text-[#5B21B6] dark:bg-[#7C3AED]/20 dark:text-[#DDD6FE]",
 ]
 
 export function RosterGrid({
@@ -76,13 +77,14 @@ export function RosterGrid({
   assignments,
   published,
   coverage,
+  selectedDay = null,
+  onSelectDay,
   onAddStaff,
   onOpenShifts,
   onEditStaff,
   onDeleteStaff,
 }: Props) {
   const days = getWeekDays(scheduleId)
-  const [openDay, setOpenDay] = useState<number | null>(null)
   const sortedShifts = sortShifts(shifts)
   const overlapCells = overlapCellKeys(
     findOverlapConflicts(shifts, assignments)
@@ -115,6 +117,8 @@ export function RosterGrid({
                   </TableHead>
                   {days.map((d, dayIndex) => {
                     const today = isToday(d)
+                    const shortfall =
+                      coverage?.days[dayIndex]?.totals.shortfall ?? 0
                     const header = (
                       <>
                         <div
@@ -133,19 +137,37 @@ export function RosterGrid({
                         >
                           {d.getDate()}
                         </div>
+                        {coverage && (
+                          // Fixed-height slot so headers don't jump when a pill appears.
+                          <div className="mt-1 flex h-5 items-center justify-center">
+                            {shortfall > 0 && (
+                              <span
+                                className="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+                                title={`${shortfall} understaffed ${shortfall === 1 ? "hour" : "hours"}`}
+                              >
+                                -{shortfall}h
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </>
                     )
                     return (
                       <TableHead
                         key={d.getTime()}
-                        className="h-auto border-l border-border/60 bg-background px-1 py-2 text-center"
+                        className={cn(
+                          "h-auto border-l border-border/60 bg-background px-1 py-2 text-center",
+                          selectedDay === dayIndex &&
+                            "bg-primary/5 shadow-[inset_0_-2px_0_var(--color-primary)]"
+                        )}
                       >
                         {coverage ? (
                           <button
                             type="button"
-                            onClick={() => setOpenDay(dayIndex)}
+                            onClick={() => onSelectDay?.(dayIndex)}
+                            aria-pressed={selectedDay === dayIndex}
                             aria-label={`${d.toLocaleDateString("en-US", { weekday: "short", day: "numeric" })}, show hourly coverage`}
-                            className="w-full rounded-lg py-1 outline-none transition-colors hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50"
+                            className="w-full rounded-lg py-1 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                           >
                             {header}
                           </button>
@@ -171,7 +193,9 @@ export function RosterGrid({
                     <TableCell className="group/employee font-medium whitespace-normal transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate text-base">{person.name}</div>
+                          <div className="truncate text-base">
+                            {person.name}
+                          </div>
                           <HoursLabel
                             assigned={getAssignedHours(
                               person.id,
@@ -262,7 +286,7 @@ export function RosterGrid({
                   <TableCell colSpan={days.length + 1} className="p-0">
                     <Button
                       variant="ghost"
-                      className="h-14 w-full justify-start rounded-none px-4 text-base"
+                      className="h-14 w-full justify-start rounded-none px-4 text-base hover:bg-muted/45 dark:hover:bg-muted/30"
                       onClick={onAddStaff}
                     >
                       <Plus /> Add employee
@@ -305,16 +329,6 @@ export function RosterGrid({
           </div>
         </div>
       </div>
-      {coverage && openDay !== null && (
-        <DayCoverageDrawer
-          open
-          onOpenChange={(open) => !open && setOpenDay(null)}
-          date={days[openDay]}
-          day={coverage.days[openDay]}
-          onPrev={openDay > 0 ? () => setOpenDay(openDay - 1) : undefined}
-          onNext={openDay < 6 ? () => setOpenDay(openDay + 1) : undefined}
-        />
-      )}
     </div>
   )
 }

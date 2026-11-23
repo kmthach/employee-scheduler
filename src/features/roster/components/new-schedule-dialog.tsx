@@ -76,7 +76,10 @@ function Stepper({
         return (
           <li
             key={label}
-            className={cn("flex items-center", i < STEPS.length - 1 && "flex-1")}
+            className={cn(
+              "flex items-center",
+              i < STEPS.length - 1 && "flex-1"
+            )}
             aria-current={current ? "step" : undefined}
           >
             <button
@@ -157,17 +160,18 @@ function Wizard({ onOpenChange, scheduleId, initial, onCreate }: Props) {
   const [replacedCopy, setReplacedCopy] = useState(false)
 
   // Validation (derived; shown once the user tries to continue).
-  const shiftErrors: ShiftValidation["errors"][] = shifts.map((row) =>
-    validateShiftInput(
-      { startTime: row.startTime, endTime: row.endTime },
-      shifts.map((r) => ({
-        id: String(r.key),
-        scheduleId,
-        startTime: r.startTime,
-        endTime: r.endTime,
-      })),
-      String(row.key)
-    ).errors
+  const shiftErrors: ShiftValidation["errors"][] = shifts.map(
+    (row) =>
+      validateShiftInput(
+        { startTime: row.startTime, endTime: row.endTime },
+        shifts.map((r) => ({
+          id: String(r.key),
+          scheduleId,
+          startTime: r.startTime,
+          endTime: r.endTime,
+        })),
+        String(row.key)
+      ).errors
   )
   const shiftsOk = shiftErrors.every((e) => Object.keys(e).length === 0)
 
