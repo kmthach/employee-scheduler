@@ -1,3 +1,4 @@
+import { DEFAULT_TRANSACTIONS_PER_STAFF_HOUR, requiredStaffFor } from "./demand"
 import { parseTime } from "./time"
 import type { Assignment, DayOfWeek, Shift, TransactionRecord } from "./types"
 
@@ -8,12 +9,18 @@ export interface HourCoverage {
   staffHours: number
   /** transactions / staffHours, or null when nobody is working. */
   ratio: number | null
+  /** Employees this hour needs at the chosen transactions per staff hour. */
+  required: number
+  /** Employees short of `required` (0 when fully staffed). */
+  shortfall: number
 }
 
 export interface CoverageTotals {
   transactions: number
   staffHours: number
   ratio: number | null
+  /** Sum of the hourly shortfalls. */
+  shortfall: number
 }
 
 export interface DayCoverage {
@@ -29,6 +36,8 @@ export interface WeekSummary {
   overallRatio: number | null
   /** Mean of the hourly ratios over hours that have staff. */
   averageHourlyRatio: number | null
+  /** Staff-hours short of the required staffing, summed over the week. */
+  understaffedHours: number
 }
 
 export interface WeekCoverage {
@@ -65,7 +74,8 @@ export function staffedHours(
 export function computeCoverage(
   shifts: Shift[],
   assignments: Assignment[],
-  transactions: TransactionRecord[]
+  transactions: TransactionRecord[],
+  perStaffHour: number = DEFAULT_TRANSACTIONS_PER_STAFF_HOUR
 ): WeekCoverage {
   const shiftHours = new Map(shifts.map((s) => [s.id, staffedHours(s)]))
 
@@ -93,14 +103,27 @@ export function computeCoverage(
       const staff = working.get(`${d}-${hour}`)?.size ?? 0
       const r = ratio(tx, staff)
       if (r !== null) hourlyRatios.push(r)
-      return { hour, transactions: tx, staffHours: staff, ratio: r }
+      const required = requiredStaffFor(tx, perStaffHour)
+      return {
+        hour,
+        transactions: tx,
+        staffHours: staff,
+        ratio: r,
+        required,
+        shortfall: Math.max(0, required - staff),
+      }
     })
     const tx = rows.reduce((n, r) => n + r.transactions, 0)
     const staff = rows.reduce((n, r) => n + r.staffHours, 0)
     return {
       dayOfWeek: d as DayOfWeek,
       rows,
-      totals: { transactions: tx, staffHours: staff, ratio: ratio(tx, staff) },
+      totals: {
+        transactions: tx,
+        staffHours: staff,
+        ratio: ratio(tx, staff),
+        shortfall: rows.reduce((n, r) => n + r.shortfall, 0),
+      },
     }
   })
 
@@ -112,6 +135,7 @@ export function computeCoverage(
       totalTransactions,
       totalStaffHours,
       overallRatio: ratio(totalTransactions, totalStaffHours),
+      understaffedHours: days.reduce((n, d) => n + d.totals.shortfall, 0),
       averageHourlyRatio:
         hourlyRatios.length > 0
           ? hourlyRatios.reduce((n, r) => n + r, 0) / hourlyRatios.length

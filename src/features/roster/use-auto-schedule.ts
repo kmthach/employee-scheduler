@@ -1,8 +1,6 @@
 import { useCallback, useRef, useState } from "react"
 
 import { generateSchedule } from "@/domain/auto-schedule"
-import { summarizeAutoSchedule } from "@/domain/auto-schedule-report"
-import type { AutoScheduleSummary } from "@/domain/auto-schedule-report"
 import { filterBySchedule } from "@/domain/schedule-data"
 import {
   getTransactionsPerStaffHour,
@@ -14,8 +12,6 @@ export type AutoScheduleStatus = "idle" | "running" | "error"
 interface AutoScheduleState {
   status: AutoScheduleStatus
   error?: string
-  /** Result of the last run and the week it belongs to. */
-  summary?: AutoScheduleSummary & { scheduleId: string }
 }
 
 /** Runs the generator in a worker and applies the result to the viewed week. */
@@ -61,13 +57,7 @@ export function useAutoSchedule() {
         return
       }
       current.applyGeneratedAssignments(result.assignments)
-      setState({
-        status: "idle",
-        summary: {
-          ...summarizeAutoSchedule(result),
-          scheduleId,
-        },
-      })
+      setState({ status: "idle" })
     } catch (e) {
       if (abort.signal.aborted) {
         setState({ status: "idle" })
@@ -83,7 +73,6 @@ export function useAutoSchedule() {
   }, [])
 
   const cancel = useCallback(() => controller.current?.abort(), [])
-  const dismiss = useCallback(() => setState({ status: "idle" }), [])
 
-  return { ...state, run, cancel, dismiss }
+  return { ...state, run, cancel }
 }

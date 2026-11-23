@@ -1,5 +1,5 @@
 import { Undo2 } from "lucide-react"
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 
 import {
   AlertDialog,
@@ -24,10 +24,12 @@ interface Props {
   staff: Staff[]
   shifts: Shift[]
   assignments: Assignment[]
+  /** Rendered in the button row, after Publish/Discard (the week selector). */
+  children?: ReactNode
 }
 
 /** Publish button (reads "Published" and is disabled once published) and Discard changes. */
-export function PublishBar({ schedule, staff, shifts, assignments }: Props) {
+export function PublishBar({ schedule, staff, shifts, assignments, children }: Props) {
   const publish = useScheduleStore((s) => s.publishSchedule)
   const discard = useScheduleStore((s) => s.discardDraft)
   const hasPublishedVersion = useScheduleStore(
@@ -43,7 +45,8 @@ export function PublishBar({ schedule, staff, shifts, assignments }: Props) {
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <Button
-          size="sm"
+          size="lg"
+          className="rounded-full px-6"
           onClick={publish}
           disabled={!isDraft || !validation.ok}
         >
@@ -51,13 +54,14 @@ export function PublishBar({ schedule, staff, shifts, assignments }: Props) {
         </Button>
         {isDraft && hasPublishedVersion && (
           <Button
-            size="sm"
             variant="outline"
+            className="rounded-full"
             onClick={() => setConfirmDiscard(true)}
           >
             <Undo2 /> Discard changes
           </Button>
         )}
+        {children}
       </div>
 
       {isDraft && validation.conflicts.length > 0 && (

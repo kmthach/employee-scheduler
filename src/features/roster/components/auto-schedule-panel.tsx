@@ -1,4 +1,4 @@
-import { AlertTriangle, Loader2, Sparkles, Undo2, X } from "lucide-react"
+import { AlertTriangle, Loader2, Sparkles } from "lucide-react"
 import { useState } from "react"
 
 import {
@@ -13,9 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { formatRange } from "@/domain/auto-schedule-report"
 import { validateTransactionsPerStaffHour } from "@/domain/demand"
-import { DAYS_OF_WEEK } from "@/domain/types"
 import {
   getTransactionsPerStaffHour,
   useScheduleStore,
@@ -58,10 +56,14 @@ export function AutoScheduleButton(
   if (running) {
     return (
       <div className="flex items-center gap-2">
-        <Button disabled>
+        <Button disabled className="rounded-full">
           <Loader2 className="animate-spin" /> Generating…
         </Button>
-        <Button variant="outline" onClick={auto.cancel}>
+        <Button
+          variant="outline"
+          className="rounded-full"
+          onClick={auto.cancel}
+        >
           Cancel
         </Button>
       </div>
@@ -77,6 +79,7 @@ export function AutoScheduleButton(
   return (
     <>
       <Button
+        className="rounded-full"
         disabled={reason !== null}
         title={reason ?? undefined}
         onClick={() => {
@@ -154,17 +157,12 @@ export function AutoScheduleButton(
   )
 }
 
-/** Result, undo, understaffing notes and error state for the last run. */
-export function AutoScheduleReport({
-  scheduleId,
+/** Error state for the last run (success is visible in the roster itself). */
+export function AutoScheduleError({
   auto,
 }: {
-  scheduleId: string
   auto: ReturnType<typeof useAutoSchedule>
 }) {
-  const undoInfo = useScheduleStore((s) => s.autoScheduleUndo)
-  const undo = useScheduleStore((s) => s.undoAutoSchedule)
-
   if (auto.status === "error") {
     return (
       <Alert variant="destructive">
@@ -182,60 +180,5 @@ export function AutoScheduleReport({
     )
   }
 
-  const summary = auto.summary
-  if (!summary || summary.scheduleId !== scheduleId) return null
-  const canUndo = undoInfo?.scheduleId === scheduleId
-
-  return (
-    <Alert>
-      <Sparkles />
-      <AlertTitle>
-        Draft generated: {summary.assignmentCount} assignment
-        {summary.assignmentCount === 1 ? "" : "s"}
-      </AlertTitle>
-      <AlertDescription>
-        <p>
-          Employees' maximum weekly hours were respected. Staffing assumes{" "}
-          {summary.transactionsPerStaffHour} transactions per employee per hour.
-          Review and edit the draft like any manual roster.
-        </p>
-        {summary.understaffed.length > 0 ? (
-          <p className="text-amber-700 dark:text-amber-400">
-            Understaffed ({summary.understaffedStaffHours} staff-hour
-            {summary.understaffedStaffHours === 1 ? "" : "s"} short):{" "}
-            {summary.understaffed
-              .map(
-                (r) =>
-                  `${DAYS_OF_WEEK[r.dayOfWeek]} ${formatRange(r)} needs ${r.required}, has ${r.staffed}`
-              )
-              .join(" · ")}
-            .
-          </p>
-        ) : (
-          <p>No understaffed hours.</p>
-        )}
-        {summary.notes.map((n) => (
-          <p key={n}>{n}</p>
-        ))}
-      </AlertDescription>
-      <div
-        data-slot="alert-action"
-        className="absolute top-2 right-2 flex gap-1"
-      >
-        {canUndo && (
-          <Button size="sm" variant="outline" onClick={undo}>
-            <Undo2 /> Undo
-          </Button>
-        )}
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          aria-label="Dismiss"
-          onClick={auto.dismiss}
-        >
-          <X />
-        </Button>
-      </div>
-    </Alert>
-  )
+  return null
 }

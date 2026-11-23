@@ -4,8 +4,18 @@ import {
   getMonday,
   getScheduleId,
   getWeekDays,
+  isToday,
   moveWeek,
 } from "./date"
+
+describe("isToday", () => {
+  it("matches the same local day regardless of time", () => {
+    const now = new Date(2026, 10, 23, 23, 59)
+    expect(isToday(new Date(2026, 10, 23), now)).toBe(true)
+    expect(isToday(new Date(2026, 10, 24), now)).toBe(false)
+    expect(isToday(new Date(2025, 10, 23), now)).toBe(false)
+  })
+})
 
 describe("getMonday", () => {
   it("returns the same day for a Monday", () => {

@@ -1,5 +1,6 @@
 import { useState } from "react"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -51,6 +52,15 @@ export function CoverageSection({ scheduleId, coverage }: Props) {
           >
             {date.toLocaleDateString("en-US", { weekday: "short" })}{" "}
             {date.getDate()}
+            {coverage.days[i].totals.shortfall > 0 && (
+              <Badge
+                className="bg-amber-500 text-white"
+                title={`${coverage.days[i].totals.shortfall} understaffed hours`}
+                aria-label={`${coverage.days[i].totals.shortfall} understaffed hours`}
+              >
+                {coverage.days[i].totals.shortfall}
+              </Badge>
+            )}
           </Button>
         ))}
       </div>
@@ -69,7 +79,13 @@ export function CoverageSection({ scheduleId, coverage }: Props) {
           </TableHeader>
           <TableBody>
             {day.rows.map((row) => (
-              <TableRow key={row.hour}>
+              <TableRow
+                key={row.hour}
+                className={cn(
+                  row.shortfall > 0 &&
+                    "bg-amber-50 hover:bg-amber-100/70 dark:bg-amber-950/30 dark:hover:bg-amber-950/50"
+                )}
+              >
                 <TableCell className="font-medium">
                   {hourLabel(row.hour)}
                 </TableCell>
@@ -85,8 +101,15 @@ export function CoverageSection({ scheduleId, coverage }: Props) {
                   )}
                 >
                   {row.staffHours}
-                  {row.staffHours === 0 && row.transactions > 0 && (
-                    <span className="ml-2 text-xs">No staff</span>
+                  {row.shortfall > 0 && (
+                    <Badge
+                      variant="outline"
+                      className="ml-2 border-amber-500 text-amber-700 dark:text-amber-400"
+                      title={`Needs ${row.required}, has ${row.staffHours}`}
+                      aria-label={`Needs ${row.required}, has ${row.staffHours}`}
+                    >
+                      needs {row.required}
+                    </Badge>
                   )}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
@@ -105,16 +128,36 @@ export function CoverageSection({ scheduleId, coverage }: Props) {
         <Stat label="Transactions" value={String(day.totals.transactions)} />
         <Stat label="Staff hours" value={String(day.totals.staffHours)} />
         <Stat label="Overall ratio" value={formatRatio(day.totals.ratio)} />
+        <Stat
+          label="Understaffed hours"
+          value={String(day.totals.shortfall)}
+          warn={day.totals.shortfall > 0}
+        />
       </dl>
     </section>
   )
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({
+  label,
+  value,
+  warn = false,
+}: {
+  label: string
+  value: string
+  warn?: boolean
+}) {
   return (
     <div>
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-xl font-semibold tabular-nums">{value}</dd>
+      <dd
+        className={cn(
+          "text-xl font-semibold tabular-nums",
+          warn && "text-amber-600 dark:text-amber-400"
+        )}
+      >
+        {value}
+      </dd>
     </div>
   )
 }

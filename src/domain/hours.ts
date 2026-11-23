@@ -17,6 +17,20 @@ export function getAssignedHours(
   return total
 }
 
+/** Hours assigned per day across all employees; index = dayOfWeek (0 = Monday). */
+export function getDailyAssignedHours(
+  assignments: Assignment[],
+  shifts: Shift[]
+): number[] {
+  const shiftById = new Map(shifts.map((s) => [s.id, s]))
+  const totals = Array<number>(7).fill(0)
+  for (const a of assignments) {
+    const shift = shiftById.get(a.shiftId)
+    if (shift) totals[a.dayOfWeek] += shiftDurationHours(shift)
+  }
+  return totals
+}
+
 export type HoursStatus = "ok" | "at-max" | "over"
 
 const toMinutes = (hours: number) => Math.round(hours * 60)

@@ -32,6 +32,11 @@ export function moveWeek(scheduleId: string, offset: number): string {
   return formatDate(date)
 }
 
+/** Whether `date` falls on the same local calendar day as `now`. */
+export function isToday(date: Date, now: Date = new Date()): boolean {
+  return formatDate(date) === formatDate(now)
+}
+
 /** The seven dates (Monday–Sunday) of the schedule week. */
 export function getWeekDays(scheduleId: string): Date[] {
   const start = parseScheduleId(scheduleId)

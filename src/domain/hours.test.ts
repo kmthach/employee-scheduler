@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { getAssignedHours, getHoursStatus } from "./hours"
+import { getAssignedHours, getDailyAssignedHours, getHoursStatus } from "./hours"
 import type { Assignment, Shift } from "./types"
 
 const shifts: Shift[] = [
@@ -34,5 +34,26 @@ describe("getHoursStatus", () => {
     expect(getHoursStatus(23.5, 24)).toBe("ok")
     expect(getHoursStatus(24, 24)).toBe("at-max")
     expect(getHoursStatus(24.5, 24)).toBe("over")
+  })
+})
+
+describe("getDailyAssignedHours", () => {
+  it("is seven zeros with no assignments", () => {
+    expect(getDailyAssignedHours([], shifts)).toEqual([0, 0, 0, 0, 0, 0, 0])
+  })
+
+  it("sums every employee's hours onto the right day, including overlaps and fractions", () => {
+    const list = [a("1", "x", "m", 0), a("2", "y", "h", 0), a("3", "x", "h", 1)]
+    expect(getDailyAssignedHours(list, shifts)).toEqual([11.5, 3.5, 0, 0, 0, 0, 0])
+  })
+
+  it("ignores assignments whose shift no longer exists", () => {
+    expect(getDailyAssignedHours([a("1", "x", "gone", 0)], shifts)[0]).toBe(0)
+  })
+
+  it("adds up to the sum of per-employee hours", () => {
+    const list = [a("1", "x", "m", 0), a("2", "y", "h", 1), a("3", "x", "h", 1)]
+    const total = getDailyAssignedHours(list, shifts).reduce((n, h) => n + h, 0)
+    expect(total).toBe(getAssignedHours("x", list, shifts) + getAssignedHours("y", list, shifts))
   })
 })

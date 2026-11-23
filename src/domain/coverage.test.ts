@@ -103,7 +103,14 @@ describe("computeCoverage", () => {
   it("lists hours without staff when there is demand", () => {
     const c = computeCoverage([], [], [tx(2, 8, 30)])
     expect(c.days[2].rows).toEqual([
-      { hour: 8, transactions: 30, staffHours: 0, ratio: null },
+      {
+        hour: 8,
+        transactions: 30,
+        staffHours: 0,
+        ratio: null,
+        required: 2,
+        shortfall: 2,
+      },
     ])
     expect(c.week.totalStaffHours).toBe(0)
     expect(c.week.overallRatio).toBeNull()
@@ -120,15 +127,18 @@ describe("computeCoverage", () => {
       transactions: 50,
       staffHours: 2,
       ratio: 25,
+      shortfall: 2, // needs 2+2, has 1+1
     })
     expect(c.days[1].totals).toEqual({
       transactions: 160,
       staffHours: 4,
       ratio: 40,
+      shortfall: 7, // needs 7+4, has 2+2
     })
     expect(c.week.totalTransactions).toBe(210)
     expect(c.week.totalStaffHours).toBe(6)
     expect(c.week.overallRatio).toBe(35)
+    expect(c.week.understaffedHours).toBe(9)
   })
 
   it("average hourly ratio differs from the overall ratio and skips zero-staff hours", () => {
@@ -145,5 +155,47 @@ describe("computeCoverage", () => {
   it("ignores assignments whose shift is missing", () => {
     const c = computeCoverage([], [asg("1", "a", "gone")], [tx(0, 8, 5)])
     expect(c.days[0].rows[0].staffHours).toBe(0)
+  })
+})
+
+describe("computeCoverage understaffing", () => {
+  const shifts = [shift("mid", "09:00", "10:00")]
+  const two = [asg("1", "a", "mid"), asg("2", "b", "mid")]
+
+  it("has no shortfall when staffing meets the requirement", () => {
+    const c = computeCoverage(shifts, two, [tx(0, 9, 30)])
+    expect(c.days[0].rows[0]).toMatchObject({ required: 2, shortfall: 0 })
+    expect(c.week.understaffedHours).toBe(0)
+  })
+
+  it("reports the gap when fewer employees work than required", () => {
+    const c = computeCoverage(shifts, [two[0]], [tx(0, 9, 46)])
+    expect(c.days[0].rows[0]).toMatchObject({
+      required: 4,
+      staffHours: 1,
+      shortfall: 3,
+    })
+    expect(c.days[0].totals.shortfall).toBe(3)
+  })
+
+  it("needs nobody for hours without transactions", () => {
+    const c = computeCoverage(shifts, [], [])
+    expect(c.week.understaffedHours).toBe(0)
+  })
+
+  it("needs at least one employee for any transactions", () => {
+    const c = computeCoverage([], [], [tx(1, 8, 1)])
+    expect(c.days[1].rows[0]).toMatchObject({ required: 1, shortfall: 1 })
+  })
+
+  it("honours a custom transactions per staff hour and sums the week", () => {
+    const c = computeCoverage(
+      shifts,
+      [two[0]],
+      [tx(0, 9, 20), tx(2, 9, 20)],
+      10
+    )
+    expect(c.days[0].rows[0].required).toBe(2)
+    expect(c.week.understaffedHours).toBe(1 + 2) // day 0: needs 2 has 1; day 2: needs 2 has 0
   })
 })

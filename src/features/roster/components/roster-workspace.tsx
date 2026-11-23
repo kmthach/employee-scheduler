@@ -13,13 +13,17 @@ import { DeleteStaffDialog } from "@/features/staff/components/delete-staff-dial
 import { ShiftTemplatesDialog } from "@/features/shifts/components/shift-templates-dialog"
 import { TransactionsDialog } from "@/features/transactions/components/transactions-dialog"
 import { StaffFormDialog } from "@/features/staff/components/staff-form-dialog"
-import { useScheduleStore } from "@/store/schedule-store"
+import {
+  getTransactionsPerStaffHour,
+  useScheduleStore,
+} from "@/store/schedule-store"
 
 import { useAutoSchedule } from "../use-auto-schedule"
-import { AutoScheduleButton, AutoScheduleReport } from "./auto-schedule-panel"
+import { AutoScheduleButton, AutoScheduleError } from "./auto-schedule-panel"
 import { OverMaxAlert } from "./over-max-alert"
 import { PublishBar } from "./publish-bar"
 import { RosterGrid } from "./roster-grid"
+import { WeekSelector } from "./week-selector"
 
 export function RosterWorkspace() {
   const scheduleId = useScheduleStore((s) => s.currentScheduleId)
@@ -35,6 +39,9 @@ export function RosterWorkspace() {
   const allTransactions = useScheduleStore((s) => s.transactions)
   const report = useScheduleStore(
     (s) => s.transactionReports[s.currentScheduleId]
+  )
+  const perStaffHour = useScheduleStore((s) =>
+    getTransactionsPerStaffHour(s, s.currentScheduleId)
   )
   const createSchedule = useScheduleStore((s) => s.createSchedule)
   const addStaffMany = useScheduleStore((s) => s.addStaffMany)
@@ -68,13 +75,14 @@ export function RosterWorkspace() {
   )
 
   const coverage = useMemo(
-    () => computeCoverage(shifts, assignments, transactions),
-    [shifts, assignments, transactions]
+    () => computeCoverage(shifts, assignments, transactions, perStaffHour),
+    [shifts, assignments, transactions, perStaffHour]
   )
 
   if (!schedule) {
     return (
-      <main className="p-6">
+      <main className="flex min-h-svh flex-col gap-4 bg-calendar p-6">
+        <WeekSelector />
         <EmptyState
           icon={<CalendarPlus className="size-8" />}
           title="No schedule for this week"
@@ -90,14 +98,16 @@ export function RosterWorkspace() {
   }
 
   return (
-    <main className="flex flex-col gap-4 p-6">
+    <main className="flex h-svh flex-col gap-4 bg-calendar p-6">
       <div className="flex items-start justify-between gap-4">
         <PublishBar
           schedule={schedule}
           staff={staff}
           shifts={shifts}
           assignments={assignments}
-        />
+        >
+          <WeekSelector />
+        </PublishBar>
         <div className="flex items-center gap-2">
           <AutoScheduleButton
             auto={auto}
@@ -110,36 +120,39 @@ export function RosterWorkspace() {
               published !== undefined || schedule.status === "published"
             }
           />
-          <Button variant="outline" onClick={() => setTransactionsOpen(true)}>
+          <Button
+            variant="outline"
+            className="rounded-full"
+            onClick={() => setTransactionsOpen(true)}
+          >
             <Upload /> Upload transactions
           </Button>
-          <Button variant="outline" onClick={() => setShiftsOpen(true)}>
+          <Button
+            variant="outline"
+            className="rounded-full"
+            onClick={() => setShiftsOpen(true)}
+          >
             <Clock /> Shifts ({shifts.length})
           </Button>
         </div>
       </div>
       <Tabs
+        className="min-h-0 flex-1"
         value={tab}
         onValueChange={(value) => setTab(value as "roster" | "summary")}
       >
-        <TabsList>
+        <TabsList variant="line">
           <TabsTrigger value="roster">Roster</TabsTrigger>
           <TabsTrigger value="summary">Summary</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="roster" className="flex flex-col gap-4">
-          <AutoScheduleReport scheduleId={scheduleId} auto={auto} />
+        <TabsContent value="roster" className="flex min-h-0 flex-col gap-4">
+          <AutoScheduleError auto={auto} />
           <OverMaxAlert
             staff={staff}
             shifts={shifts}
             assignments={assignments}
           />
-          {staff.length > 0 && assignments.length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              No shifts assigned yet — use Auto-schedule to generate a draft, or
-              the + in a day cell to assign a shift.
-            </p>
-          )}
           <RosterGrid
             scheduleId={scheduleId}
             staff={staff}
@@ -151,15 +164,15 @@ export function RosterWorkspace() {
               setEditing(null)
               setFormOpen(true)
             }}
+            onDeleteStaff={setDeleting}
             onEditStaff={(s) => {
               setEditing(s)
               setFormOpen(true)
             }}
-            onDeleteStaff={setDeleting}
           />
         </TabsContent>
 
-        <TabsContent value="summary" className="flex flex-col gap-6">
+        <TabsContent value="summary" className="flex min-h-0 flex-col gap-6 overflow-y-auto">
           <SummaryView
             scheduleId={scheduleId}
             coverage={coverage}

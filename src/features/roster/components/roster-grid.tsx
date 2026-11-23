@@ -1,6 +1,18 @@
-import { AlertTriangle, Pencil, Plus, Trash2 } from "lucide-react"
+import {
+  AlertTriangle,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Table,
   TableBody,
@@ -9,9 +21,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { getWeekDays } from "@/domain/date"
+import { getWeekDays, isToday } from "@/domain/date"
 import { diffAssignments } from "@/domain/draft"
-import { getAssignedHours, getHoursStatus } from "@/domain/hours"
+import {
+  getAssignedHours,
+  getDailyAssignedHours,
+  getHoursStatus,
+} from "@/domain/hours"
 import {
   findOverlapConflicts,
   overlapCellKeys,
@@ -42,9 +58,9 @@ interface Props {
 }
 
 const SHIFT_COLORS = [
-  "bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200",
-  "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
-  "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
+  "border-l-sky-500 bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200",
+  "border-l-amber-500 bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
+  "border-l-emerald-500 bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
 ]
 
 export function RosterGrid({
@@ -63,6 +79,8 @@ export function RosterGrid({
   const overlapCells = overlapCellKeys(
     findOverlapConflicts(shifts, assignments)
   )
+  const dailyTotals = getDailyAssignedHours(assignments, shifts)
+  const weekTotal = dailyTotals.reduce((n, h) => n + h, 0)
   const diff = published
     ? diffAssignments(published.assignments, assignments)
     : undefined
@@ -71,109 +89,211 @@ export function RosterGrid({
     return SHIFT_COLORS[Math.max(index, 0) % SHIFT_COLORS.length]
   }
 
+  const tableClass = "table-fixed"
+  const gutter =
+    "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden *:data-[slot=table-container]:overflow-visible"
+
   return (
-    <div className="overflow-x-auto rounded-lg border">
-      <Table className="min-w-[960px] table-fixed">
-        <TableHeader>
-          <TableRow className="bg-muted/50 hover:bg-muted/50">
-            <TableHead className="w-44">Employee</TableHead>
-            {days.map((d) => (
-              <TableHead key={d.getTime()} className="border-l">
-                <div>{d.toLocaleDateString("en-US", { weekday: "short" })}</div>
-                <div className="text-xs font-normal text-muted-foreground">
-                  {d.toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
+    <div className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-border/60 bg-background">
+      <div className="flex min-h-0 flex-1 flex-col overflow-x-auto">
+        <div className="flex min-h-0 min-w-[960px] flex-1 flex-col">
+          <div className={cn("overflow-y-hidden bg-background", gutter)}>
+            <Table className={tableClass}>
+              <GridColumns />
+              <TableHeader>
+                <TableRow className="border-0 hover:bg-transparent">
+                  <TableHead className="w-44 bg-background align-bottom">
+                    Employee
+                  </TableHead>
+                  {days.map((d) => {
+                    const today = isToday(d)
+                    return (
+                      <TableHead
+                        key={d.getTime()}
+                        className="h-auto border-l border-border/60 bg-background py-3 text-center"
+                      >
+                        <div
+                          className={cn(
+                            "text-xs font-medium tracking-wide text-muted-foreground uppercase",
+                            today && "text-primary"
+                          )}
+                        >
+                          {d.toLocaleDateString("en-US", { weekday: "short" })}
+                        </div>
+                        <div
+                          className={cn(
+                            "mx-auto mt-1 flex size-10 items-center justify-center rounded-full text-2xl font-normal",
+                            today && "bg-primary text-primary-foreground"
+                          )}
+                        >
+                          {d.getDate()}
+                        </div>
+                      </TableHead>
+                    )
                   })}
-                </div>
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {staff.map((person) => (
-            <TableRow
-              key={person.id}
-              className="align-top hover:bg-transparent has-aria-expanded:bg-transparent"
-            >
-              <TableCell className="font-medium whitespace-normal transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="truncate">{person.name}</div>
-                    <HoursLabel
-                      assigned={getAssignedHours(
-                        person.id,
-                        assignments,
-                        shifts
-                      )}
-                      max={person.maxWeeklyHours}
-                    />
-                  </div>
-                  <div className="flex shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`Edit ${person.name}`}
-                      onClick={() => onEditStaff(person)}
-                    >
-                      <Pencil />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`Delete ${person.name}`}
-                      onClick={() => onDeleteStaff(person)}
-                    >
-                      <Trash2 />
-                    </Button>
-                  </div>
-                </div>
-              </TableCell>
-              {days.map((_, dayIndex) => {
-                const hasOverlap = overlapCells.has(`${person.id}|${dayIndex}`)
-                return (
-                  <TableCell
-                    key={dayIndex}
-                    title={
-                      hasOverlap
-                        ? "Overlapping shifts: fix before publishing"
-                        : undefined
-                    }
-                    className={cn(
-                      "border-l transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50",
-                      hasOverlap && "bg-destructive/10 hover:bg-destructive/15"
-                    )}
+                </TableRow>
+              </TableHeader>
+            </Table>
+          </div>
+          <div className={cn("min-h-0 flex-1 overflow-y-auto", gutter)}>
+            <Table className={tableClass}>
+              <GridColumns />
+              <TableBody>
+                {staff.map((person) => (
+                  <TableRow
+                    key={person.id}
+                    className="align-top hover:bg-transparent has-aria-expanded:bg-transparent"
                   >
-                    <AssignmentCell
-                      person={person}
-                      dayOfWeek={dayIndex as DayOfWeek}
-                      shifts={sortedShifts}
-                      staff={staff}
-                      assignments={assignments}
-                      diff={diff}
-                      publishedShifts={published?.shifts}
-                      shiftColor={shiftColor}
-                      onOpenShifts={onOpenShifts}
-                    />
+                    <TableCell className="group/employee font-medium whitespace-normal transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="truncate text-base">{person.name}</div>
+                          <HoursLabel
+                            assigned={getAssignedHours(
+                              person.id,
+                              assignments,
+                              shifts
+                            )}
+                            max={person.maxWeeklyHours}
+                          />
+                        </div>
+                        <div className="flex shrink-0">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger
+                              render={
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  aria-label={`Actions for ${person.name}`}
+                                  className="opacity-0 transition-opacity group-hover/employee:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100"
+                                />
+                              }
+                            >
+                              <MoreHorizontal />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-44">
+                              <DropdownMenuItem
+                                onClick={() => onEditStaff(person)}
+                              >
+                                <Pencil /> Edit info
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                variant="destructive"
+                                onClick={() => onDeleteStaff(person)}
+                              >
+                                <Trash2 /> Delete employee
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+                    </TableCell>
+                    {days.map((_, dayIndex) => {
+                      const hasOverlap = overlapCells.has(
+                        `${person.id}|${dayIndex}`
+                      )
+                      return (
+                        <TableCell
+                          key={dayIndex}
+                          title={
+                            hasOverlap
+                              ? "Overlapping shifts: fix before publishing"
+                              : undefined
+                          }
+                          className={cn(
+                            "group/cell border-l border-border/60 transition-colors hover:bg-muted/30 has-aria-expanded:bg-muted/30",
+                            hasOverlap &&
+                              "bg-destructive/10 hover:bg-destructive/15"
+                          )}
+                        >
+                          <AssignmentCell
+                            person={person}
+                            dayOfWeek={dayIndex as DayOfWeek}
+                            shifts={sortedShifts}
+                            staff={staff}
+                            assignments={assignments}
+                            diff={diff}
+                            publishedShifts={published?.shifts}
+                            shiftColor={shiftColor}
+                            onOpenShifts={onOpenShifts}
+                          />
+                        </TableCell>
+                      )
+                    })}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div
+            className={cn(
+              "overflow-y-hidden border-t border-border/60 bg-background",
+              gutter
+            )}
+          >
+            <Table className={tableClass}>
+              <GridColumns />
+              <TableBody>
+                <TableRow className="border-0 hover:bg-transparent">
+                  <TableCell colSpan={days.length + 1} className="p-0">
+                    <Button
+                      variant="ghost"
+                      className="h-9 w-full justify-start rounded-none px-4"
+                      onClick={onAddStaff}
+                    >
+                      <Plus /> Add employee
+                    </Button>
                   </TableCell>
-                )
-              })}
-            </TableRow>
-          ))}
-          <TableRow className="hover:bg-transparent has-aria-expanded:bg-transparent">
-            <TableCell colSpan={days.length + 1} className="p-1">
-              <Button
-                variant="ghost"
-                className="w-full justify-start"
-                onClick={onAddStaff}
-              >
-                <Plus /> Add employee
-              </Button>
-            </TableCell>
-          </TableRow>
-        </TableBody>
-      </Table>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+          <div
+            className={cn(
+              "overflow-y-hidden border-t border-border/60 bg-muted",
+              gutter
+            )}
+          >
+            <Table className={tableClass}>
+              <GridColumns />
+              <TableBody>
+                <TableRow className="border-0 bg-muted font-medium hover:bg-muted">
+                  <TableCell className="py-2">
+                    <div>Total assigned hours</div>
+                    <div className="text-xs font-normal text-muted-foreground">
+                      {weekTotal}h
+                    </div>
+                  </TableCell>
+                  {dailyTotals.map((hours, i) => (
+                    <TableCell
+                      key={i}
+                      className={cn(
+                        "border-l border-border/60 py-2 text-center",
+                        hours === 0 && "text-muted-foreground"
+                      )}
+                    >
+                      {hours}h
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      </div>
     </div>
+  )
+}
+
+/** Shared column widths so the header, body and footer tables line up. */
+function GridColumns() {
+  return (
+    <colgroup>
+      <col className="w-44" />
+      {Array.from({ length: 7 }, (_, i) => (
+        <col key={i} />
+      ))}
+    </colgroup>
   )
 }
 
@@ -188,7 +308,7 @@ function HoursLabel({ assigned, max }: { assigned: number; max: number }) {
       title={status === "over" ? "Over maximum weekly hours" : undefined}
     >
       {status === "over" && <AlertTriangle className="size-3" />}
-      {assigned}h / max {max}h
+      {assigned}h / {max}h
     </div>
   )
 }

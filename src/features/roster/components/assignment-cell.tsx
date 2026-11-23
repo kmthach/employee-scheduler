@@ -118,9 +118,9 @@ export function AssignmentCell({
             variant="secondary"
             title={isNew ? "Not published yet" : undefined}
             className={cn(
-              "rounded-md",
+              "h-auto min-w-20 justify-start rounded-lg border-l-4 px-2 py-1 text-xs font-medium",
               isNew
-                ? "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                ? "border-l-zinc-400 bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
                 : shiftColor(shift.id)
             )}
           >
@@ -183,7 +183,7 @@ export function AssignmentCell({
       >
         <Badge
           variant="secondary"
-          className="w-full rounded-md line-through opacity-50"
+          className="h-auto w-full rounded-lg px-2 py-1 line-through opacity-50"
           aria-label={`${label(shift)} on ${dayName}, pending removal`}
         >
           {label(shift)}
@@ -194,7 +194,7 @@ export function AssignmentCell({
           disabled={reason !== null}
           title={reason ?? "Revert removal"}
           aria-label={`Revert removal of ${label(shift)} on ${dayName}`}
-          className="absolute inset-0 inline-flex items-center justify-center gap-1 rounded-md bg-secondary text-xs font-medium text-secondary-foreground opacity-0 transition-opacity outline-none group-hover/removed:opacity-100 hover:bg-secondary/80 focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:text-muted-foreground disabled:hover:bg-secondary [&_svg]:size-3"
+          className="absolute inset-0 inline-flex items-center justify-center gap-1 rounded-lg bg-secondary text-xs font-medium text-secondary-foreground opacity-0 transition-opacity outline-none group-hover/removed:opacity-100 hover:bg-secondary/80 focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:text-muted-foreground disabled:hover:bg-secondary [&_svg]:size-3"
           onClick={() =>
             restoreAssignment({
               staffId: person.id,
@@ -223,7 +223,7 @@ export function AssignmentCell({
                 variant="ghost"
                 size="icon-xs"
                 aria-label={`Assign shift to ${person.name} on ${dayName}`}
-                className="text-muted-foreground"
+                className="text-muted-foreground opacity-0 transition-opacity group-hover/cell:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100"
               />
             }
           >
