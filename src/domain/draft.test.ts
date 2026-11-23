@@ -4,6 +4,7 @@ import {
   assignmentKey,
   diffAssignments,
   getContent,
+  hasContentChanges,
   replaceContent,
   validateForPublish,
 } from "./draft"
@@ -129,5 +130,40 @@ describe("diffAssignments", () => {
     const d = diffAssignments([a1], [{ ...a1, id: "new" }])
     expect(d.removed).toEqual([])
     expect(d.addedKeys.size).toBe(0)
+  })
+})
+
+describe("hasContentChanges", () => {
+  const base: ScheduleContent = {
+    staff: [staff("ana", "w")],
+    shifts: [shift("s1", "w", "07:00", "15:00")],
+    assignments: [
+      { id: "a1", scheduleId: "w", staffId: "ana", shiftId: "s1", dayOfWeek: 0 },
+    ],
+  }
+
+  it("is false for identical content, even with new assignment ids", () => {
+    const reverted: ScheduleContent = {
+      ...base,
+      assignments: [{ ...base.assignments[0], id: "other-id" }],
+    }
+    expect(hasContentChanges(base, reverted)).toBe(false)
+  })
+  it("detects added and removed assignments", () => {
+    expect(hasContentChanges(base, { ...base, assignments: [] })).toBe(true)
+    expect(
+      hasContentChanges({ ...base, assignments: [] }, base)
+    ).toBe(true)
+  })
+  it("detects employee and shift edits", () => {
+    expect(
+      hasContentChanges(base, { ...base, staff: [staff("ana", "w", 30)] })
+    ).toBe(true)
+    expect(
+      hasContentChanges(base, {
+        ...base,
+        shifts: [shift("s1", "w", "08:00", "15:00")],
+      })
+    ).toBe(true)
   })
 })

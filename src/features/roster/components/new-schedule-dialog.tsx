@@ -140,11 +140,13 @@ function Wizard({ onOpenChange, scheduleId, initial, onCreate }: Props) {
     initial.shifts.map((s) => ({ key: key(), ...s }))
   )
   const [staff, setStaff] = useState<StaffRow[]>(() =>
-    initial.staff.map((s) => ({
-      key: key(),
-      name: s.name,
-      hours: String(s.maxWeeklyHours),
-    }))
+    initial.staff.length > 0
+      ? initial.staff.map((s) => ({
+          key: key(),
+          name: s.name,
+          hours: String(s.maxWeeklyHours),
+        }))
+      : [{ key: key(), name: "", hours: "40" }]
   )
   const [cells, setCells] = useState<TransactionCell[]>(initial.transactions)
   const [source, setSource] = useState<TransactionSource | undefined>(
@@ -176,9 +178,11 @@ function Wizard({ onOpenChange, scheduleId, initial, onCreate }: Props) {
       maxWeeklyHours: r.hours.trim() === "" ? NaN : Number(r.hours),
     }))
   )
-  const staffOk = filledStaff.length === 0 || staffResult.ok
-  const staffErrors: StaffValidation["errors"][] =
-    filledStaff.length === 0 ? [] : staffResult.errors.map((e) => e ?? {})
+  // At least one employee is required; blank rows are ignored.
+  const staffOk = filledStaff.length > 0 && staffResult.ok
+  const staffErrors: StaffValidation["errors"][] = staffResult.errors.map(
+    (e) => e ?? {}
+  )
 
   const stepOk = step === 0 ? shiftsOk : step === 1 ? staffOk : true
 
@@ -196,12 +200,13 @@ function Wizard({ onOpenChange, scheduleId, initial, onCreate }: Props) {
   }
 
   function create() {
+    if (!shiftsOk || !staffOk) return
     onCreate({
       shifts: shifts.map((r) => ({
         startTime: r.startTime,
         endTime: r.endTime,
       })),
-      staff: filledStaff.length === 0 ? [] : staffResult.inputs,
+      staff: staffResult.inputs,
       transactions: cells,
       transactionSource: cells.length > 0 ? source : undefined,
     })
@@ -330,8 +335,9 @@ function Wizard({ onOpenChange, scheduleId, initial, onCreate }: Props) {
         {step === 1 && (
           <>
             <p className="text-sm text-muted-foreground">
-              Employees for the week. You can skip this and add them later.
+              Add at least one employee for the week.
             </p>
+
             {staff.length > 0 && (
               <div className="grid grid-cols-[1fr_7rem_2rem] gap-2 text-xs text-muted-foreground">
                 <span>Name</span>
@@ -392,6 +398,12 @@ function Wizard({ onOpenChange, scheduleId, initial, onCreate }: Props) {
                     variant="ghost"
                     size="icon-sm"
                     aria-label={`Remove employee ${i + 1}`}
+                    disabled={staff.length === 1}
+                    title={
+                      staff.length === 1
+                        ? "A schedule needs at least one employee"
+                        : undefined
+                    }
                     onClick={() =>
                       setStaff((rs) => rs.filter((r) => r.key !== row.key))
                     }

@@ -80,3 +80,25 @@ export function diffAssignments(
     addedKeys: new Set([...workingKeys].filter((k) => !publishedKeys.has(k))),
   }
 }
+
+/**
+ * Whether the working draft differs from the published content. Employees and shifts are compared
+ * by id and values, assignments by employee + day + shift (so reverting every change reads as
+ * "no changes").
+ */
+export function hasContentChanges(
+  published: ScheduleContent,
+  working: ScheduleContent
+): boolean {
+  const signature = (c: ScheduleContent) =>
+    JSON.stringify({
+      staff: c.staff
+        .map((x) => `${x.id}|${x.name}|${x.maxWeeklyHours}`)
+        .sort(),
+      shifts: c.shifts
+        .map((x) => `${x.id}|${x.startTime}|${x.endTime}`)
+        .sort(),
+      assignments: c.assignments.map(assignmentKey).sort(),
+    })
+  return signature(published) !== signature(working)
+}

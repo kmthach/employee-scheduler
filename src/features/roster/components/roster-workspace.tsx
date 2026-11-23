@@ -166,14 +166,14 @@ export function RosterWorkspace() {
               className="h-9 rounded-md"
               onClick={() => setTransactionsOpen(true)}
             >
-              <Upload /> Upload CSV
+              <Upload /> Upload transactions
             </Button>
             <Button
               variant="ghost"
               className="h-9 rounded-md"
               onClick={() => setShiftsOpen(true)}
             >
-              <Clock /> Shifts ({shifts.length})
+              <Clock /> Shifts
             </Button>
             <div className="mx-1 h-5 w-px bg-border" aria-hidden />
             <AutoScheduleButton
@@ -193,7 +193,6 @@ export function RosterWorkspace() {
       <div className="flex min-h-0 flex-1 flex-col gap-4">
         <WeeklySummary
           week={transactions.length > 0 ? coverage.week : null}
-          onUploadTransactions={() => setTransactionsOpen(true)}
         />
         <AutoScheduleError auto={auto} />
         <OverMaxAlert staff={staff} shifts={shifts} assignments={assignments} />

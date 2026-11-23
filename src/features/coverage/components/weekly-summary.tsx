@@ -1,36 +1,17 @@
-import { Upload } from "lucide-react"
-
-import { Button } from "@/components/ui/button"
 import { formatRatio } from "@/domain/coverage"
 import type { WeekSummary } from "@/domain/coverage"
 import { cn } from "@/lib/utils"
 
 interface Props {
-  /** Null when the week has no transaction data. */
+  /** Null when the week has no transaction data (nothing is shown). */
   week: WeekSummary | null
-  onUploadTransactions: () => void
 }
 
 const count = (n: number) => n.toLocaleString("en-US")
 
-/** Slim KPI strip above the roster grid; a short upload prompt when there is no demand data. */
-export function WeeklySummary({ week, onUploadTransactions }: Props) {
-  if (!week) {
-    return (
-      <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-        No transaction data. Upload the weekly report to compare staffing with
-        demand.
-        <Button
-          variant="outline"
-          size="sm"
-          className="rounded-lg"
-          onClick={onUploadTransactions}
-        >
-          <Upload /> Upload transactions
-        </Button>
-      </div>
-    )
-  }
+/** Slim KPI strip above the roster grid; hidden when there is no demand data. */
+export function WeeklySummary({ week }: Props) {
+  if (!week) return null
   const stats = [
     {
       label: "Transactions",

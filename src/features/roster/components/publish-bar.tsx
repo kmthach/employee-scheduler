@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { validateForPublish } from "@/domain/draft"
+import { hasContentChanges, validateForPublish } from "@/domain/draft"
 import { describeConflict } from "@/domain/shift"
 import { DAYS_OF_WEEK } from "@/domain/types"
 import type { Assignment, Schedule, Shift, Staff } from "@/domain/types"
@@ -41,12 +41,16 @@ export function PublishBar({
 }: Props) {
   const publish = useScheduleStore((s) => s.publishSchedule)
   const discard = useScheduleStore((s) => s.discardDraft)
-  const hasPublishedVersion = useScheduleStore(
-    (s) => s.publishedSnapshots[schedule.id] !== undefined
-  )
+  const snapshot = useScheduleStore((s) => s.publishedSnapshots[schedule.id])
   const [confirmDiscard, setConfirmDiscard] = useState(false)
 
   const isDraft = schedule.status === "draft"
+  // A draft of a published schedule only counts as changed while it differs from the published
+  // version; reverting every change makes it identical again (no Discard, nothing to publish).
+  const hasChanges = snapshot
+    ? hasContentChanges(snapshot, { staff, shifts, assignments })
+    : true
+  const unchanged = snapshot !== undefined && !hasChanges
   // Overlaps and employees over their maximum hours both block publishing.
   const validation = validateForPublish({ staff, shifts, assignments })
 
@@ -57,7 +61,7 @@ export function PublishBar({
         {leading}
         <div className="flex flex-wrap items-center justify-end gap-2">
           {actions}
-          {isDraft && hasPublishedVersion && (
+          {isDraft && snapshot && hasChanges && (
             <Button
               variant="ghost"
               className="h-9 rounded-md text-muted-foreground"
@@ -66,20 +70,13 @@ export function PublishBar({
               <Undo2 /> Discard changes
             </Button>
           )}
-          {isDraft ? (
-            <Button
-              className="h-9 rounded-md px-5 font-semibold"
-              onClick={publish}
-              disabled={!validation.ok}
-            >
-              Publish
-            </Button>
-          ) : (
-            <span className="flex h-9 items-center gap-2 px-2 text-sm font-medium text-muted-foreground">
-              <span className="size-2 rounded-full bg-emerald-500" aria-hidden />
-              Published
-            </span>
-          )}
+          <Button
+            className="h-9 rounded-md px-5 font-semibold"
+            onClick={publish}
+            disabled={!isDraft || unchanged || !validation.ok}
+          >
+            {isDraft && !unchanged ? "Publish" : "Published"}
+          </Button>
         </div>
       </div>
 

@@ -1,4 +1,4 @@
-import { AlertTriangle, Loader2, Sparkles } from "lucide-react"
+import { AlertTriangle, Loader2 } from "lucide-react"
 import { useState } from "react"
 
 import {
@@ -88,7 +88,7 @@ export function AutoScheduleButton(
           setOpen(true)
         }}
       >
-        <Sparkles className="fill-primary/20" /> Auto-schedule
+        Auto-schedule
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>

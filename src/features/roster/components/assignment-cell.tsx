@@ -1,4 +1,4 @@
-import { Plus, Undo2 } from "lucide-react"
+import { Plus, Undo2, X } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -6,10 +6,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { checkAssignment, describeBlock } from "@/domain/assignment"
@@ -52,7 +48,6 @@ export function AssignmentCell({
 }: Props) {
   const assignShift = useScheduleStore((s) => s.assignShift)
   const restoreAssignment = useScheduleStore((s) => s.restoreAssignment)
-  const changeShift = useScheduleStore((s) => s.changeAssignmentShift)
   const removeAssignment = useScheduleStore((s) => s.removeAssignment)
 
   const dayName = DAYS_OF_WEEK[dayOfWeek]
@@ -74,11 +69,10 @@ export function AssignmentCell({
   const allAssigned =
     shifts.length > 0 && shifts.every((s) => assignedShiftIds.has(s.id))
 
-  function blockReason(shiftId: string, ignoreId?: string): string | null {
+  function blockReason(shiftId: string): string | null {
     const check = checkAssignment(
       { staff, shifts, assignments },
-      { staffId: person.id, shiftId, dayOfWeek },
-      ignoreId
+      { staffId: person.id, shiftId, dayOfWeek }
     )
     return check.ok ? null : describeBlock(check, shifts)
   }
@@ -104,64 +98,34 @@ export function AssignmentCell({
     if (!shift) return null
     const isNew = diff?.addedKeys.has(assignmentKey(a)) ?? false
     return (
-      <DropdownMenu key={a.id}>
-        <DropdownMenuTrigger
-          aria-label={`${label(shift)} on ${dayName}, actions`}
-          render={
-            <button
-              type="button"
-              className="rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-            />
-          }
+      <div key={a.id} className="group/assignment relative min-w-20">
+        <Badge
+          variant="secondary"
+          title={isNew ? "Not published yet" : undefined}
+          className={cn(
+            "h-auto w-full justify-start rounded-md border py-1 pr-8 pl-2 text-xs font-medium",
+            isNew
+              ? "border-transparent bg-[#e1e3e1] text-[#1f1f1f] dark:bg-[#444746] dark:text-[#e3e3e3]"
+              : shiftColor(shift.id)
+          )}
         >
-          <Badge
-            variant="secondary"
-            title={isNew ? "Not published yet" : undefined}
-            className={cn(
-              "h-auto min-w-20 justify-start rounded-md border px-2 py-1 text-xs font-medium",
-              isNew
-                ? "border-transparent bg-[#e1e3e1] text-[#1f1f1f] dark:bg-[#444746] dark:text-[#e3e3e3]"
-                : shiftColor(shift.id)
-            )}
-          >
-            {label(shift)}
-          </Badge>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-56">
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>Change shift</DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="w-56">
-              {shifts
-                .filter((s) => !assignedShiftIds.has(s.id))
-                .map((s) => {
-                  const reason = blockReason(s.id, a.id)
-                  return (
-                    <DropdownMenuItem
-                      key={s.id}
-                      disabled={reason !== null}
-                      onClick={() => changeShift(a.id, s.id)}
-                    >
-                      <span>{label(s)}</span>
-                      <span className="ml-auto text-xs text-muted-foreground">
-                        {reason ?? `${shiftDurationHours(s)}h`}
-                      </span>
-                    </DropdownMenuItem>
-                  )
-                })}
-              {shifts.every((s) => assignedShiftIds.has(s.id)) && (
-                <DropdownMenuItem disabled>No other shifts</DropdownMenuItem>
-              )}
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            variant="destructive"
-            onClick={() => removeAssignment(a.id)}
-          >
-            Remove
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          {label(shift)}
+        </Badge>
+        <button
+          type="button"
+          aria-label={`Remove ${label(shift)} on ${dayName}`}
+          title="Remove"
+          onClick={() => removeAssignment(a.id)}
+          className={cn(
+            "absolute top-1/2 right-1 flex size-5 -translate-y-1/2 items-center justify-center rounded-full opacity-0 transition-all outline-none group-hover/assignment:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring",
+            isNew
+              ? "bg-black/10 text-[#1f1f1f] hover:bg-black/25 dark:bg-white/15 dark:text-[#e3e3e3] dark:hover:bg-white/30"
+              : "bg-black/25 text-white hover:bg-black/50"
+          )}
+        >
+          <X className="size-3.5" strokeWidth={3} />
+        </button>
+      </div>
     )
   }
 
