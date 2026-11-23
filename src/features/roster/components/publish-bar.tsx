@@ -71,7 +71,7 @@ export function PublishBar({
             </Button>
           )}
           <Button
-            className="h-9 rounded-md px-5 font-semibold"
+            className="h-9 rounded-full px-5 font-semibold"
             onClick={publish}
             disabled={!isDraft || unchanged || !validation.ok}
           >

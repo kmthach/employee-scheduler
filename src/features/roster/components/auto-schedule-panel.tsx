@@ -1,4 +1,4 @@
-import { AlertTriangle, Loader2 } from "lucide-react"
+import { AlertTriangle } from "lucide-react"
 import { useState } from "react"
 
 import {
@@ -53,23 +53,6 @@ export function AutoScheduleButton(
   const value = text.trim() === "" ? NaN : Number(text)
   const error = validateTransactionsPerStaffHour(value)
 
-  if (running) {
-    return (
-      <div className="flex items-center gap-2">
-        <Button variant="outline" disabled className="h-9 rounded-md">
-          <Loader2 className="animate-spin" /> Generating…
-        </Button>
-        <Button
-          variant="outline"
-          className="h-9 rounded-md"
-          onClick={auto.cancel}
-        >
-          Cancel
-        </Button>
-      </div>
-    )
-  }
-
   function submit() {
     if (error) return
     setOpen(false)
@@ -80,8 +63,8 @@ export function AutoScheduleButton(
     <>
       <Button
         variant="secondary"
-        className="h-9 rounded-md"
-        disabled={reason !== null}
+        className="h-9"
+        disabled={reason !== null || running}
         title={reason ?? undefined}
         onClick={() => {
           setText(String(saved)) // the viewed week's saved value (15 by default)
