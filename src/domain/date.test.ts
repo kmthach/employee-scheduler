@@ -4,6 +4,7 @@ import {
   getMonday,
   getScheduleId,
   getWeekDays,
+  getWeekOptions,
   isToday,
   moveWeek,
 } from "./date"
@@ -59,5 +60,23 @@ describe("getWeekDays", () => {
     expect(days).toHaveLength(7)
     expect(days[0].getDay()).toBe(1)
     expect(days[6].getDay()).toBe(0)
+  })
+})
+
+describe("getWeekOptions", () => {
+  it("returns a sorted window around the center including extra ids", () => {
+    const options = getWeekOptions("2026-11-16", ["2025-01-06"], 2)
+    expect(options).toEqual([
+      "2025-01-06",
+      "2026-11-02",
+      "2026-11-09",
+      "2026-11-16",
+      "2026-11-23",
+      "2026-11-30",
+    ])
+  })
+
+  it("does not duplicate ids already in the window", () => {
+    expect(getWeekOptions("2026-11-16", ["2026-11-23"], 1)).toHaveLength(3)
   })
 })

@@ -56,12 +56,12 @@ export function AutoScheduleButton(
   if (running) {
     return (
       <div className="flex items-center gap-2">
-        <Button disabled className="rounded-full">
+        <Button variant="outline" disabled className="h-9 rounded-md">
           <Loader2 className="animate-spin" /> Generating…
         </Button>
         <Button
           variant="outline"
-          className="rounded-full"
+          className="h-9 rounded-md"
           onClick={auto.cancel}
         >
           Cancel
@@ -79,7 +79,8 @@ export function AutoScheduleButton(
   return (
     <>
       <Button
-        className="rounded-full"
+        variant="secondary"
+        className="h-9 rounded-md"
         disabled={reason !== null}
         title={reason ?? undefined}
         onClick={() => {
@@ -87,7 +88,7 @@ export function AutoScheduleButton(
           setOpen(true)
         }}
       >
-        <Sparkles /> Auto-schedule
+        <Sparkles className="fill-primary/20" /> Auto-schedule
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>

@@ -15,7 +15,12 @@ import {
 import type { AssignmentCandidate, AssignmentCheck } from "@/domain/assignment"
 import { getContent, replaceContent, validateForPublish } from "@/domain/draft"
 import type { PublishValidation } from "@/domain/draft"
-import { createSchedule } from "@/domain/schedule"
+import {
+  copyScheduleContent,
+  createSchedule,
+  findSourceScheduleId,
+} from "@/domain/schedule"
+import type { NewScheduleSetup } from "@/domain/schedule"
 import {
   addShift,
   removeShift,
@@ -72,8 +77,17 @@ interface ScheduleState {
   goToPreviousWeek: () => void
   goToNextWeek: () => void
   goToCurrentWeek: () => void
-  /** Creates a schedule for the viewed week. No-op if one already exists. */
-  createSchedule: () => void
+  goToWeek: (scheduleId: string) => void
+  /**
+   * Creates a schedule for the viewed week from `setup` (default shifts if omitted), in one
+   * update. No-op if one already exists.
+   */
+  createSchedule: (setup?: NewScheduleSetup) => void
+  /**
+   * Creates the viewed week as a full copy (shifts, employees, assignments, transactions) of the
+   * latest earlier schedule. No-op if the week exists or there is no earlier schedule.
+   */
+  copyPreviousSchedule: () => void
   addStaffMany: (inputs: StaffInput[]) => void
   updateStaff: (id: string, input: StaffInput) => void
   deleteStaff: (id: string) => void
@@ -178,16 +192,77 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
   goToNextWeek: () =>
     set((s) => ({ currentScheduleId: moveWeek(s.currentScheduleId, 1) })),
   goToCurrentWeek: () => set((s) => ({ currentScheduleId: s.todayScheduleId })),
+  goToWeek: (scheduleId) => set({ currentScheduleId: scheduleId }),
 
-  createSchedule: () =>
+  createSchedule: (setup) =>
     set((s) => {
       if (s.schedules.some((x) => x.id === s.currentScheduleId)) return s
-      const created = createSchedule(s.currentScheduleId, new Date(), () =>
-        crypto.randomUUID()
+      const id = s.currentScheduleId
+      const created = createSchedule(
+        id,
+        new Date(),
+        () => crypto.randomUUID(),
+        setup
       )
+      const hasTransactions = created.transactions.length > 0
       return {
         schedules: [...s.schedules, created.schedule],
         shifts: [...s.shifts, ...created.shifts],
+        staff: [...s.staff, ...created.staff],
+        transactions: [...s.transactions, ...created.transactions],
+        transactionReports: hasTransactions
+          ? {
+              ...s.transactionReports,
+              [id]: {
+                fileName: setup?.transactionSource?.fileName ?? null,
+                reportRange: setup?.transactionSource?.reportRange,
+                savedAt: created.schedule.createdAt,
+              },
+            }
+          : s.transactionReports,
+      }
+    }),
+
+  copyPreviousSchedule: () =>
+    set((s) => {
+      const id = s.currentScheduleId
+      if (s.schedules.some((x) => x.id === id)) return s
+      const sourceId = findSourceScheduleId(
+        s.schedules.map((x) => x.id),
+        id
+      )
+      if (!sourceId) return s
+      const inSource = <T extends { scheduleId: string }>(rows: T[]) =>
+        rows.filter((r) => r.scheduleId === sourceId)
+      const copy = copyScheduleContent(
+        {
+          staff: inSource(s.staff),
+          shifts: inSource(s.shifts),
+          assignments: inSource(s.assignments),
+          transactions: inSource(s.transactions),
+        },
+        id,
+        () => crypto.randomUUID()
+      )
+      const now = new Date().toISOString()
+      const report = s.transactionReports[sourceId]
+      const perHour = s.transactionsPerStaffHour[sourceId]
+      return {
+        schedules: [
+          ...s.schedules,
+          { id, status: "draft", createdAt: now, updatedAt: now },
+        ],
+        staff: [...s.staff, ...copy.staff],
+        shifts: [...s.shifts, ...copy.shifts],
+        assignments: [...s.assignments, ...copy.assignments],
+        transactions: [...s.transactions, ...copy.transactions],
+        transactionReports: report
+          ? { ...s.transactionReports, [id]: { ...report, savedAt: now } }
+          : s.transactionReports,
+        transactionsPerStaffHour:
+          perHour === undefined
+            ? s.transactionsPerStaffHour
+            : { ...s.transactionsPerStaffHour, [id]: perHour },
       }
     }),
 

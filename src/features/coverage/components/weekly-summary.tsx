@@ -1,64 +1,79 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Upload } from "lucide-react"
+
+import { Button } from "@/components/ui/button"
 import { formatRatio } from "@/domain/coverage"
 import type { WeekSummary } from "@/domain/coverage"
 import { cn } from "@/lib/utils"
 
-export function WeeklySummary({ week }: { week: WeekSummary }) {
-  const cards = [
+interface Props {
+  /** Null when the week has no transaction data. */
+  week: WeekSummary | null
+  onUploadTransactions: () => void
+}
+
+const count = (n: number) => n.toLocaleString("en-US")
+
+/** Slim KPI strip above the roster grid; a short upload prompt when there is no demand data. */
+export function WeeklySummary({ week, onUploadTransactions }: Props) {
+  if (!week) {
+    return (
+      <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+        No transaction data. Upload the weekly report to compare staffing with
+        demand.
+        <Button
+          variant="outline"
+          size="sm"
+          className="rounded-lg"
+          onClick={onUploadTransactions}
+        >
+          <Upload /> Upload transactions
+        </Button>
+      </div>
+    )
+  }
+  const stats = [
     {
-      title: "Total transactions",
-      value: String(week.totalTransactions),
+      label: "Transactions",
+      value: count(week.totalTransactions),
       note: "All hours, Monday–Sunday",
     },
     {
-      title: "Total staff hours",
-      value: String(week.totalStaffHours),
+      label: "Staff hours",
+      value: `${count(week.totalStaffHours)}h`,
       note: "Employees working, summed over every hour",
     },
     {
-      title: "Overall transactions / staff hour",
+      label: "Txn / staff hr",
       value: formatRatio(week.overallRatio),
       note: "Total transactions ÷ total staff hours (weekly productivity)",
     },
     {
-      title: "Average hourly transactions / staff hour",
+      label: "Avg hourly ratio",
       value: formatRatio(week.averageHourlyRatio),
-      note: "Mean of the hourly ratios, staffed hours only",
+      note: "Mean of the hourly transactions per staff hour, staffed hours only",
     },
     {
-      title: "Understaffed staff-hours",
-      value: String(week.understaffedHours),
-      note: "Hours short of the required staffing",
+      label: "Understaffed",
+      value: `${count(week.understaffedHours)}h`,
+      note: "Staff-hours short of the required staffing",
       warn: week.understaffedHours > 0,
     },
   ]
   return (
-    <section className="flex flex-col gap-3" aria-labelledby="summary-title">
-      <h2 id="summary-title" className="text-lg font-semibold">
-        Weekly summary
-      </h2>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        {cards.map((c) => (
-          <Card key={c.title} size="sm">
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {c.title}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div
-                className={cn(
-                  "text-2xl font-semibold tabular-nums",
-                  c.warn && "text-amber-600 dark:text-amber-400"
-                )}
-              >
-                {c.value}
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">{c.note}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </section>
+    <dl className="flex flex-wrap items-baseline gap-x-8 gap-y-1">
+      {stats.map((s) => (
+        <div key={s.label} className="flex items-baseline gap-2" title={s.note}>
+          <dt className="text-xs text-muted-foreground">{s.label}</dt>
+          <dd
+            className={cn(
+              "text-base font-semibold tabular-nums",
+              s.warn && "text-amber-600 dark:text-amber-400"
+            )}
+          >
+            {s.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
   )
 }

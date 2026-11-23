@@ -70,10 +70,12 @@ A shift template consists of:
 - Start time
 - End time
 
-Seed every new schedule with:
+The first schedule is seeded with:
 
 - 07:00–15:00
 - 15:00–23:00
+
+A later schedule starts from the latest earlier schedule instead: the New schedule dialog (Shifts, Employees, Transactions steps) is pre-filled from it, or "Copy previous schedule" clones it completely (including assignments) as a draft.
 
 Users can:
 

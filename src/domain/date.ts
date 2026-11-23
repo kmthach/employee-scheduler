@@ -56,3 +56,17 @@ export function formatWeekRange(scheduleId: string): string {
   const endText = end.toLocaleDateString("en-US", short)
   return `${startText} – ${endText}, ${end.getFullYear()}`
 }
+
+/**
+ * Week ids offered in the week dropdown: `radius` weeks either side of
+ * `centerId`, plus every id in `extraIds` (e.g. existing schedules), sorted ascending.
+ */
+export function getWeekOptions(
+  centerId: string,
+  extraIds: string[] = [],
+  radius = 8
+): string[] {
+  const ids = new Set(extraIds)
+  for (let i = -radius; i <= radius; i++) ids.add(moveWeek(centerId, i))
+  return [...ids].sort()
+}

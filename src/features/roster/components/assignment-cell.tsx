@@ -118,9 +118,9 @@ export function AssignmentCell({
             variant="secondary"
             title={isNew ? "Not published yet" : undefined}
             className={cn(
-              "h-auto min-w-20 justify-start rounded-lg border-l-4 px-2 py-1 text-xs font-medium",
+              "h-auto min-w-20 justify-start rounded-md border px-2 py-1 text-xs font-medium",
               isNew
-                ? "border-l-zinc-400 bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                ? "border-transparent bg-[#e1e3e1] text-[#1f1f1f] dark:bg-[#444746] dark:text-[#e3e3e3]"
                 : shiftColor(shift.id)
             )}
           >

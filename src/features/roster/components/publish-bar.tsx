@@ -24,12 +24,21 @@ interface Props {
   staff: Staff[]
   shifts: Shift[]
   assignments: Assignment[]
-  /** Rendered in the button row, after Publish/Discard (the week selector). */
-  children?: ReactNode
+  /** Left side of the header row (the week selector). */
+  leading?: ReactNode
+  /** Auto-schedule, Upload and Shifts controls, left of Discard/Publish in the header row. */
+  actions?: ReactNode
 }
 
 /** Publish button (reads "Published" and is disabled once published) and Discard changes. */
-export function PublishBar({ schedule, staff, shifts, assignments, children }: Props) {
+export function PublishBar({
+  schedule,
+  staff,
+  shifts,
+  assignments,
+  leading,
+  actions,
+}: Props) {
   const publish = useScheduleStore((s) => s.publishSchedule)
   const discard = useScheduleStore((s) => s.discardDraft)
   const hasPublishedVersion = useScheduleStore(
@@ -43,25 +52,35 @@ export function PublishBar({ schedule, staff, shifts, assignments, children }: P
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          size="lg"
-          className="rounded-full px-6"
-          onClick={publish}
-          disabled={!isDraft || !validation.ok}
-        >
-          {isDraft ? "Publish" : "Published"}
-        </Button>
-        {isDraft && hasPublishedVersion && (
-          <Button
-            variant="outline"
-            className="rounded-full"
-            onClick={() => setConfirmDiscard(true)}
-          >
-            <Undo2 /> Discard changes
-          </Button>
-        )}
-        {children}
+      {/* One row: when (week navigation) on the left, what to do on the right, Publish last. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        {leading}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {actions}
+          {isDraft && hasPublishedVersion && (
+            <Button
+              variant="ghost"
+              className="h-9 rounded-md text-muted-foreground"
+              onClick={() => setConfirmDiscard(true)}
+            >
+              <Undo2 /> Discard changes
+            </Button>
+          )}
+          {isDraft ? (
+            <Button
+              className="h-9 rounded-md px-5 font-semibold"
+              onClick={publish}
+              disabled={!validation.ok}
+            >
+              Publish
+            </Button>
+          ) : (
+            <span className="flex h-9 items-center gap-2 px-2 text-sm font-medium text-muted-foreground">
+              <span className="size-2 rounded-full bg-emerald-500" aria-hidden />
+              Published
+            </span>
+          )}
+        </div>
       </div>
 
       {isDraft && validation.conflicts.length > 0 && (

@@ -1,14 +1,18 @@
-import { CalendarPlus, Clock, Plus, Upload } from "lucide-react"
+import { CalendarPlus, Clock, Copy, Plus, Upload } from "lucide-react"
 import { useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/empty-state"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { computeCoverage } from "@/domain/coverage"
 import { formatWeekRange } from "@/domain/date"
+import {
+  findSourceScheduleId,
+  getDefaultSetup,
+  getSetupFromSource,
+} from "@/domain/schedule"
 import { filterBySchedule } from "@/domain/schedule-data"
 import type { Staff } from "@/domain/types"
-import { SummaryView } from "@/features/coverage/components/summary-view"
+import { WeeklySummary } from "@/features/coverage/components/weekly-summary"
 import { DeleteStaffDialog } from "@/features/staff/components/delete-staff-dialog"
 import { ShiftTemplatesDialog } from "@/features/shifts/components/shift-templates-dialog"
 import { TransactionsDialog } from "@/features/transactions/components/transactions-dialog"
@@ -22,6 +26,7 @@ import { useAutoSchedule } from "../use-auto-schedule"
 import { AutoScheduleButton, AutoScheduleError } from "./auto-schedule-panel"
 import { OverMaxAlert } from "./over-max-alert"
 import { PublishBar } from "./publish-bar"
+import { NewScheduleDialog } from "./new-schedule-dialog"
 import { RosterGrid } from "./roster-grid"
 import { WeekSelector } from "./week-selector"
 
@@ -43,7 +48,10 @@ export function RosterWorkspace() {
   const perStaffHour = useScheduleStore((s) =>
     getTransactionsPerStaffHour(s, s.currentScheduleId)
   )
+  const schedules = useScheduleStore((s) => s.schedules)
+  const reports = useScheduleStore((s) => s.transactionReports)
   const createSchedule = useScheduleStore((s) => s.createSchedule)
+  const copyPreviousSchedule = useScheduleStore((s) => s.copyPreviousSchedule)
   const addStaffMany = useScheduleStore((s) => s.addStaffMany)
   const updateStaff = useScheduleStore((s) => s.updateStaff)
   const deleteStaff = useScheduleStore((s) => s.deleteStaff)
@@ -52,9 +60,9 @@ export function RosterWorkspace() {
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Staff | null>(null)
   const [deleting, setDeleting] = useState<Staff | null>(null)
-  const [tab, setTab] = useState<"roster" | "summary">("roster")
   const [shiftsOpen, setShiftsOpen] = useState(false)
   const [transactionsOpen, setTransactionsOpen] = useState(false)
+  const [newScheduleOpen, setNewScheduleOpen] = useState(false)
 
   const staff = useMemo(
     () => filterBySchedule(allStaff, scheduleId),
@@ -79,6 +87,25 @@ export function RosterWorkspace() {
     [shifts, assignments, transactions, perStaffHour]
   )
 
+  // For a week with no schedule: the latest earlier schedule seeds the New schedule dialog and Copy.
+  const sourceId = findSourceScheduleId(
+    schedules.map((x) => x.id),
+    scheduleId
+  )
+  const newScheduleSetup = useMemo(() => {
+    if (!sourceId) return getDefaultSetup()
+    const report = reports[sourceId]
+    return getSetupFromSource({
+      staff: filterBySchedule(allStaff, sourceId),
+      shifts: filterBySchedule(allShifts, sourceId),
+      assignments: [],
+      transactions: filterBySchedule(allTransactions, sourceId),
+      transactionSource: report
+        ? { fileName: report.fileName, reportRange: report.reportRange }
+        : undefined,
+    })
+  }, [sourceId, reports, allStaff, allShifts, allTransactions])
+
   if (!schedule) {
     return (
       <main className="flex min-h-svh flex-col gap-4 bg-calendar p-6">
@@ -86,12 +113,39 @@ export function RosterWorkspace() {
         <EmptyState
           icon={<CalendarPlus className="size-8" />}
           title="No schedule for this week"
-          body={`Nothing has been planned for ${formatWeekRange(scheduleId)} yet.`}
-          action={
-            <Button onClick={createSchedule}>
-              <Plus /> New schedule
-            </Button>
+          body={
+            sourceId
+              ? `Nothing has been planned for ${formatWeekRange(scheduleId)} yet. Start fresh, or copy ${formatWeekRange(sourceId)}.`
+              : `Nothing has been planned for ${formatWeekRange(scheduleId)} yet.`
           }
+          action={
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button
+                variant="outline"
+                className="rounded-md"
+                onClick={() => setNewScheduleOpen(true)}
+              >
+                <Plus /> New schedule
+              </Button>
+              {sourceId && (
+                <Button
+                  variant="outline"
+                  className="rounded-md"
+                  title={`Copies ${formatWeekRange(sourceId)}`}
+                  onClick={copyPreviousSchedule}
+                >
+                  <Copy /> Copy previous schedule
+                </Button>
+              )}
+            </div>
+          }
+        />
+        <NewScheduleDialog
+          open={newScheduleOpen}
+          onOpenChange={setNewScheduleOpen}
+          scheduleId={scheduleId}
+          initial={newScheduleSetup}
+          onCreate={createSchedule}
         />
       </main>
     )
@@ -99,88 +153,69 @@ export function RosterWorkspace() {
 
   return (
     <main className="flex h-svh flex-col gap-4 bg-calendar p-6">
-      <div className="flex items-start justify-between gap-4">
-        <PublishBar
-          schedule={schedule}
+      <PublishBar
+        schedule={schedule}
+        staff={staff}
+        shifts={shifts}
+        assignments={assignments}
+        leading={<WeekSelector />}
+        actions={
+          <>
+            <Button
+              variant="ghost"
+              className="h-9 rounded-md"
+              onClick={() => setTransactionsOpen(true)}
+            >
+              <Upload /> Upload CSV
+            </Button>
+            <Button
+              variant="ghost"
+              className="h-9 rounded-md"
+              onClick={() => setShiftsOpen(true)}
+            >
+              <Clock /> Shifts ({shifts.length})
+            </Button>
+            <div className="mx-1 h-5 w-px bg-border" aria-hidden />
+            <AutoScheduleButton
+              auto={auto}
+              scheduleId={scheduleId}
+              staffCount={staff.length}
+              shiftCount={shifts.length}
+              hasTransactions={transactions.length > 0}
+              assignmentCount={assignments.length}
+              isPublished={
+                published !== undefined || schedule.status === "published"
+              }
+            />
+          </>
+        }
+      />
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
+        <WeeklySummary
+          week={transactions.length > 0 ? coverage.week : null}
+          onUploadTransactions={() => setTransactionsOpen(true)}
+        />
+        <AutoScheduleError auto={auto} />
+        <OverMaxAlert staff={staff} shifts={shifts} assignments={assignments} />
+        <RosterGrid
+          scheduleId={scheduleId}
           staff={staff}
           shifts={shifts}
           assignments={assignments}
-        >
-          <WeekSelector />
-        </PublishBar>
-        <div className="flex items-center gap-2">
-          <AutoScheduleButton
-            auto={auto}
-            scheduleId={scheduleId}
-            staffCount={staff.length}
-            shiftCount={shifts.length}
-            hasTransactions={transactions.length > 0}
-            assignmentCount={assignments.length}
-            isPublished={
-              published !== undefined || schedule.status === "published"
-            }
-          />
-          <Button
-            variant="outline"
-            className="rounded-full"
-            onClick={() => setTransactionsOpen(true)}
-          >
-            <Upload /> Upload transactions
-          </Button>
-          <Button
-            variant="outline"
-            className="rounded-full"
-            onClick={() => setShiftsOpen(true)}
-          >
-            <Clock /> Shifts ({shifts.length})
-          </Button>
-        </div>
+          published={published}
+          coverage={transactions.length > 0 ? coverage : undefined}
+          onOpenShifts={() => setShiftsOpen(true)}
+          onAddStaff={() => {
+            setEditing(null)
+            setFormOpen(true)
+          }}
+          onDeleteStaff={setDeleting}
+          onEditStaff={(s) => {
+            setEditing(s)
+            setFormOpen(true)
+          }}
+        />
       </div>
-      <Tabs
-        className="min-h-0 flex-1"
-        value={tab}
-        onValueChange={(value) => setTab(value as "roster" | "summary")}
-      >
-        <TabsList variant="line">
-          <TabsTrigger value="roster">Roster</TabsTrigger>
-          <TabsTrigger value="summary">Summary</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="roster" className="flex min-h-0 flex-col gap-4">
-          <AutoScheduleError auto={auto} />
-          <OverMaxAlert
-            staff={staff}
-            shifts={shifts}
-            assignments={assignments}
-          />
-          <RosterGrid
-            scheduleId={scheduleId}
-            staff={staff}
-            shifts={shifts}
-            assignments={assignments}
-            published={published}
-            onOpenShifts={() => setShiftsOpen(true)}
-            onAddStaff={() => {
-              setEditing(null)
-              setFormOpen(true)
-            }}
-            onDeleteStaff={setDeleting}
-            onEditStaff={(s) => {
-              setEditing(s)
-              setFormOpen(true)
-            }}
-          />
-        </TabsContent>
-
-        <TabsContent value="summary" className="flex min-h-0 flex-col gap-6 overflow-y-auto">
-          <SummaryView
-            scheduleId={scheduleId}
-            coverage={coverage}
-            hasTransactions={transactions.length > 0}
-            onUploadTransactions={() => setTransactionsOpen(true)}
-          />
-        </TabsContent>
-      </Tabs>
 
       <TransactionsDialog
         open={transactionsOpen}

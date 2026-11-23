@@ -6,6 +6,8 @@ import {
   Trash2,
 } from "lucide-react"
 
+import { useState } from "react"
+
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -33,6 +35,7 @@ import {
   overlapCellKeys,
   sortShifts,
 } from "@/domain/shift"
+import type { WeekCoverage } from "@/domain/coverage"
 import type {
   Assignment,
   DayOfWeek,
@@ -40,6 +43,7 @@ import type {
   Shift,
   Staff,
 } from "@/domain/types"
+import { DayCoverageDrawer } from "@/features/coverage/components/day-coverage-drawer"
 import { cn } from "@/lib/utils"
 
 import { AssignmentCell } from "./assignment-cell"
@@ -51,6 +55,8 @@ interface Props {
   assignments: Assignment[]
   /** Last published content, present while a published schedule has unpublished changes. */
   published?: ScheduleContent
+  /** Hourly coverage per day; when set, day headers open that day's coverage drawer. */
+  coverage?: WeekCoverage
   onAddStaff: () => void
   onOpenShifts: () => void
   onEditStaff: (staff: Staff) => void
@@ -58,9 +64,9 @@ interface Props {
 }
 
 const SHIFT_COLORS = [
-  "border-l-sky-500 bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200",
-  "border-l-amber-500 bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
-  "border-l-emerald-500 bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
+  "border-transparent bg-[#3f51b5] text-white",
+  "border-transparent bg-[#0b8043] text-white",
+  "border-transparent bg-[#8e24aa] text-white",
 ]
 
 export function RosterGrid({
@@ -69,12 +75,14 @@ export function RosterGrid({
   shifts,
   assignments,
   published,
+  coverage,
   onAddStaff,
   onOpenShifts,
   onEditStaff,
   onDeleteStaff,
 }: Props) {
   const days = getWeekDays(scheduleId)
+  const [openDay, setOpenDay] = useState<number | null>(null)
   const sortedShifts = sortShifts(shifts)
   const overlapCells = overlapCellKeys(
     findOverlapConflicts(shifts, assignments)
@@ -105,13 +113,10 @@ export function RosterGrid({
                   <TableHead className="w-44 bg-background align-bottom">
                     Employee
                   </TableHead>
-                  {days.map((d) => {
+                  {days.map((d, dayIndex) => {
                     const today = isToday(d)
-                    return (
-                      <TableHead
-                        key={d.getTime()}
-                        className="h-auto border-l border-border/60 bg-background py-3 text-center"
-                      >
+                    const header = (
+                      <>
                         <div
                           className={cn(
                             "text-xs font-medium tracking-wide text-muted-foreground uppercase",
@@ -128,6 +133,25 @@ export function RosterGrid({
                         >
                           {d.getDate()}
                         </div>
+                      </>
+                    )
+                    return (
+                      <TableHead
+                        key={d.getTime()}
+                        className="h-auto border-l border-border/60 bg-background px-1 py-2 text-center"
+                      >
+                        {coverage ? (
+                          <button
+                            type="button"
+                            onClick={() => setOpenDay(dayIndex)}
+                            aria-label={`${d.toLocaleDateString("en-US", { weekday: "short", day: "numeric" })}, show hourly coverage`}
+                            className="w-full rounded-lg py-1 outline-none transition-colors hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50"
+                          >
+                            {header}
+                          </button>
+                        ) : (
+                          <div className="py-1">{header}</div>
+                        )}
                       </TableHead>
                     )
                   })}
@@ -238,7 +262,7 @@ export function RosterGrid({
                   <TableCell colSpan={days.length + 1} className="p-0">
                     <Button
                       variant="ghost"
-                      className="h-9 w-full justify-start rounded-none px-4"
+                      className="h-14 w-full justify-start rounded-none px-4 text-base"
                       onClick={onAddStaff}
                     >
                       <Plus /> Add employee
@@ -281,6 +305,16 @@ export function RosterGrid({
           </div>
         </div>
       </div>
+      {coverage && openDay !== null && (
+        <DayCoverageDrawer
+          open
+          onOpenChange={(open) => !open && setOpenDay(null)}
+          date={days[openDay]}
+          day={coverage.days[openDay]}
+          onPrev={openDay > 0 ? () => setOpenDay(openDay - 1) : undefined}
+          onNext={openDay < 6 ? () => setOpenDay(openDay + 1) : undefined}
+        />
+      )}
     </div>
   )
 }
