@@ -17,7 +17,12 @@ interface Props {
   onConfirm: (id: string) => void
 }
 
-export function DeleteShiftDialog({ shift, assignmentCount, onOpenChange, onConfirm }: Props) {
+export function DeleteShiftDialog({
+  shift,
+  assignmentCount,
+  onOpenChange,
+  onConfirm,
+}: Props) {
   return (
     <AlertDialog open={shift !== null} onOpenChange={onOpenChange}>
       <AlertDialogContent>
@@ -27,14 +32,17 @@ export function DeleteShiftDialog({ shift, assignmentCount, onOpenChange, onConf
           </AlertDialogTitle>
           <AlertDialogDescription>
             {assignmentCount > 0
-              ? `This also removes ${assignmentCount} assignment${assignmentCount === 1 ? "" : "s"} that use this shift.`
-              : "No one is assigned to this shift."}{" "}
+              ? `This also removes ${assignmentCount} employee${assignmentCount === 1 ? "" : "s"} from this shift.`
+              : "No one is scheduled on this shift."}{" "}
             This can't be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" onClick={() => shift && onConfirm(shift.id)}>
+          <AlertDialogAction
+            variant="destructive"
+            onClick={() => shift && onConfirm(shift.id)}
+          >
             Delete
           </AlertDialogAction>
         </AlertDialogFooter>

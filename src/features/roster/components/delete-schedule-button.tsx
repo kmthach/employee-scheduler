@@ -45,8 +45,8 @@ export function DeleteScheduleButton({
               {isPublished
                 ? "The published schedule for "
                 : "The schedule for "}
-              {formatWeekRange(scheduleId)} will be deleted with its employees,
-              shifts, assignments and transactions. This can't be undone.
+              {formatWeekRange(scheduleId)} will be deleted along with its
+              employees, shifts and transactions. This can't be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

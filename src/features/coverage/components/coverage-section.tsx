@@ -15,10 +15,10 @@ export function DayCoverageTable({ day }: { day: DayCoverage }) {
         <tr className="border-b border-border/60">
           <th className={cn(th, "text-left")}>Hour</th>
           <th className={th} title="Transactions">
-            Txn
+            Transactions
           </th>
-          <th className={th} title="Staff hours (employees working)">
-            Staff
+          <th className={th} title="Employees working that hour">
+            Employees
           </th>
           <th className={th} title="Transactions per staff hour">
             Ratio

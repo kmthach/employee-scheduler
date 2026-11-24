@@ -32,7 +32,7 @@ export function DayCoverageDrawer({
       label: "Transactions",
       value: day.totals.transactions.toLocaleString("en-US"),
     },
-    { label: "Staff hours", value: `${day.totals.staffHours}h` },
+    { label: "Hours worked", value: `${day.totals.staffHours}h` },
     { label: "Txn / staff hr", value: formatRatio(day.totals.ratio) },
     {
       label: "Understaffed",

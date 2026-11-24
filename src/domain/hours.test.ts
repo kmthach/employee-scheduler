@@ -1,13 +1,22 @@
 import { describe, expect, it } from "vitest"
 
-import { getAssignedHours, getDailyAssignedHours, getHoursStatus } from "./hours"
+import {
+  getAssignedHours,
+  getDailyAssignedHours,
+  getHoursStatus,
+} from "./hours"
 import type { Assignment, Shift } from "./types"
 
 const shifts: Shift[] = [
   { id: "m", scheduleId: "s", startTime: "07:00", endTime: "15:00" },
   { id: "h", scheduleId: "s", startTime: "09:00", endTime: "12:30" },
 ]
-const a = (id: string, staffId: string, shiftId: string, dayOfWeek: 0 | 1): Assignment => ({
+const a = (
+  id: string,
+  staffId: string,
+  shiftId: string,
+  dayOfWeek: 0 | 1
+): Assignment => ({
   id,
   scheduleId: "s",
   staffId,
@@ -44,7 +53,9 @@ describe("getDailyAssignedHours", () => {
 
   it("sums every employee's hours onto the right day, including overlaps and fractions", () => {
     const list = [a("1", "x", "m", 0), a("2", "y", "h", 0), a("3", "x", "h", 1)]
-    expect(getDailyAssignedHours(list, shifts)).toEqual([11.5, 3.5, 0, 0, 0, 0, 0])
+    expect(getDailyAssignedHours(list, shifts)).toEqual([
+      11.5, 3.5, 0, 0, 0, 0, 0,
+    ])
   })
 
   it("ignores assignments whose shift no longer exists", () => {
@@ -54,6 +65,8 @@ describe("getDailyAssignedHours", () => {
   it("adds up to the sum of per-employee hours", () => {
     const list = [a("1", "x", "m", 0), a("2", "y", "h", 1), a("3", "x", "h", 1)]
     const total = getDailyAssignedHours(list, shifts).reduce((n, h) => n + h, 0)
-    expect(total).toBe(getAssignedHours("x", list, shifts) + getAssignedHours("y", list, shifts))
+    expect(total).toBe(
+      getAssignedHours("x", list, shifts) + getAssignedHours("y", list, shifts)
+    )
   })
 })

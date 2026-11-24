@@ -236,7 +236,7 @@ function Wizard({ onOpenChange, scheduleId, initial, onCreate }: Props) {
       <DialogHeader>
         <DialogTitle>New schedule · {formatWeekRange(scheduleId)}</DialogTitle>
         <DialogDescription>
-          Set up this week. Nothing is created until you click Create schedule.
+          Set up this week. Nothing is saved until you click Create schedule.
         </DialogDescription>
       </DialogHeader>
 
@@ -246,12 +246,12 @@ function Wizard({ onOpenChange, scheduleId, initial, onCreate }: Props) {
         {step === 0 && (
           <>
             <p className="text-sm text-muted-foreground">
-              Reusable shifts for the week. Several employees can share a shift
-              and different shifts may overlap.
+              The shifts for this week. Several employees can work the same
+              shift, and different shifts can overlap.
             </p>
             {shifts.length === 0 && (
               <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-                No shifts yet. Add one to start assigning shifts.
+                No shifts yet. Add one to start assigning employees.
               </p>
             )}
             {shifts.map((row, i) => {
@@ -345,7 +345,7 @@ function Wizard({ onOpenChange, scheduleId, initial, onCreate }: Props) {
             {staff.length > 0 && (
               <div className="grid grid-cols-[1fr_7rem_2rem] gap-2 text-xs text-muted-foreground">
                 <span>Name</span>
-                <span>Max hours / week</span>
+                <span>Max hours per week</span>
               </div>
             )}
             {staff.map((row, i) => {
@@ -432,8 +432,8 @@ function Wizard({ onOpenChange, scheduleId, initial, onCreate }: Props) {
         {step === 2 && (
           <>
             <p className="text-sm text-muted-foreground">
-              Optional. Upload an hourly transaction report to guide
-              auto-scheduling, or add it later.
+              Optional. Upload your hourly transactions report to guide
+              Auto-schedule, or add it later.
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <Button
@@ -485,7 +485,7 @@ function Wizard({ onOpenChange, scheduleId, initial, onCreate }: Props) {
             </div>
             {fileErrors.length > 0 && (
               <Alert variant="destructive">
-                <AlertTitle>The file could not be imported</AlertTitle>
+                <AlertTitle>We couldn't read that file</AlertTitle>
                 <AlertDescription>
                   <ul className="list-disc pl-4">
                     {fileErrors.map((e, i) => (
@@ -516,7 +516,7 @@ function Wizard({ onOpenChange, scheduleId, initial, onCreate }: Props) {
               </>
             ) : (
               <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-                No transaction data.
+                No transactions added.
               </p>
             )}
           </>

@@ -81,21 +81,21 @@ export function describeBlock(check: AssignmentCheck, shifts: Shift[]): string {
     case "overlap": {
       const other = shifts.find((s) => s.id === check.conflictShiftId)
       return other
-        ? `Overlaps ${other.startTime}–${other.endTime}`
+        ? `Overlaps the ${other.startTime}–${other.endTime} shift`
         : "Overlaps another shift"
     }
     case "duplicate":
-      return "Already assigned"
+      return "Already on this shift"
     case "over-max":
       return check.overMax
-        ? `Would exceed max hours: ${check.overMax.staffName} ${check.overMax.hours}h of ${check.overMax.maxWeeklyHours}h`
-        : "Would exceed max hours"
+        ? `${check.overMax.staffName} would reach ${check.overMax.hours}h (limit ${check.overMax.maxWeeklyHours}h)`
+        : "Would go over the hour limit"
     case "missing-staff":
-      return "Employee no longer exists"
+      return "This employee was removed"
     case "missing-shift":
-      return "Shift no longer exists"
+      return "This shift was removed"
     case "wrong-schedule":
-      return "Employee and shift belong to different schedules"
+      return "Employee and shift are from different weeks"
   }
 }
 

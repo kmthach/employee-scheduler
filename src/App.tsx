@@ -8,16 +8,16 @@ function PersistenceAlert() {
   const dismiss = useScheduleStore((s) => s.setPersistenceError)
   if (!error) return null
   const text = {
-    load: "Saved data couldn't be read (storage may be unavailable), so the app started empty. New changes might not be saved.",
+    load: "We couldn't open your saved schedules, so you're starting fresh. New changes may not be kept.",
     corrupt:
-      "Saved data was unreadable, so the app started empty. The unreadable data was kept aside in this browser.",
-    save: "Changes couldn't be saved to this browser. Export what you need before closing this tab.",
+      "Your saved schedules were damaged and couldn't be opened, so you're starting fresh. A copy of the damaged data was kept in this browser.",
+    save: "Your latest changes couldn't be saved. Don't close this tab until you've exported what you need.",
   }[error]
   return (
     <div className="px-6 pt-4">
       <Alert variant="destructive">
         <AlertTitle>
-          {error === "save" ? "Changes are not being saved" : "Starting empty"}
+          {error === "save" ? "Changes aren't being saved" : "Starting fresh"}
         </AlertTitle>
         <AlertDescription>
           {text}{" "}

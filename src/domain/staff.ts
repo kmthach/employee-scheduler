@@ -16,19 +16,32 @@ export const MAX_HOURS_PER_WEEK = 168
 export function validateStaffInput(input: StaffInput): StaffValidation {
   const errors: StaffValidation["errors"] = {}
   const name = input.name.trim()
-  if (!name) errors.name = "Name is required."
+  if (!name) errors.name = "Enter a name."
   else if (name.length > MAX_NAME_LENGTH)
-    errors.name = `Name must be ${MAX_NAME_LENGTH} characters or fewer.`
+    errors.name = `Keep the name to ${MAX_NAME_LENGTH} characters or fewer.`
 
   const hours = input.maxWeeklyHours
   if (!Number.isFinite(hours) || hours <= 0 || hours > MAX_HOURS_PER_WEEK)
-    errors.maxWeeklyHours = `Enter hours greater than 0 and up to ${MAX_HOURS_PER_WEEK}.`
+    errors.maxWeeklyHours = `Enter more than 0 and up to ${MAX_HOURS_PER_WEEK} hours.`
 
   return { ok: Object.keys(errors).length === 0, errors }
 }
 
-export function addStaff(staff: Staff[], scheduleId: string, input: StaffInput, id: string): Staff[] {
-  return [...staff, { id, scheduleId, name: input.name.trim(), maxWeeklyHours: input.maxWeeklyHours }]
+export function addStaff(
+  staff: Staff[],
+  scheduleId: string,
+  input: StaffInput,
+  id: string
+): Staff[] {
+  return [
+    ...staff,
+    {
+      id,
+      scheduleId,
+      name: input.name.trim(),
+      maxWeeklyHours: input.maxWeeklyHours,
+    },
+  ]
 }
 
 export function addStaffBatch(
@@ -37,7 +50,10 @@ export function addStaffBatch(
   inputs: StaffInput[],
   newId: () => string
 ): Staff[] {
-  return inputs.reduce((acc, input) => addStaff(acc, scheduleId, input, newId()), staff)
+  return inputs.reduce(
+    (acc, input) => addStaff(acc, scheduleId, input, newId()),
+    staff
+  )
 }
 
 export interface StaffRowDraft {
@@ -54,7 +70,9 @@ export interface StaffBatchValidation {
 }
 
 /** Rows with a blank name are skipped. Any error in a non-blank row rejects the whole batch. */
-export function validateStaffBatch(rows: StaffRowDraft[]): StaffBatchValidation {
+export function validateStaffBatch(
+  rows: StaffRowDraft[]
+): StaffBatchValidation {
   const errors: StaffBatchValidation["errors"] = rows.map(() => undefined)
   const inputs: StaffInput[] = []
   let ok = true
@@ -71,14 +89,20 @@ export function validateStaffBatch(rows: StaffRowDraft[]): StaffBatchValidation 
 
   if (ok && inputs.length === 0) {
     ok = false
-    if (rows.length > 0) errors[0] = { name: "Name is required." }
+    if (rows.length > 0) errors[0] = { name: "Enter a name." }
   }
   return { ok, inputs, errors }
 }
 
-export function updateStaff(staff: Staff[], id: string, input: StaffInput): Staff[] {
+export function updateStaff(
+  staff: Staff[],
+  id: string,
+  input: StaffInput
+): Staff[] {
   return staff.map((s) =>
-    s.id === id ? { ...s, name: input.name.trim(), maxWeeklyHours: input.maxWeeklyHours } : s
+    s.id === id
+      ? { ...s, name: input.name.trim(), maxWeeklyHours: input.maxWeeklyHours }
+      : s
   )
 }
 

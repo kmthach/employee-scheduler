@@ -50,16 +50,16 @@ export function ShiftTemplatesDialog({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Shift templates</DialogTitle>
+            <DialogTitle>Shifts</DialogTitle>
             <DialogDescription>
-              Reusable shifts for this schedule.
+              The shifts you can assign this week.
             </DialogDescription>
           </DialogHeader>
 
           <ul className="grid gap-2">
             {sorted.length === 0 && (
               <li className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-                No shift templates yet. Add one to start assigning shifts.
+                No shifts yet. Add one to start assigning employees.
               </li>
             )}
             {sorted.map((shift) =>

@@ -76,7 +76,7 @@ describe("checkAssignment", () => {
       dayOfWeek: 0,
     })
     expect(r).toEqual({ ok: false, reason: "duplicate", conflictShiftId: "am" })
-    expect(describeBlock(r, shifts)).toBe("Already assigned")
+    expect(describeBlock(r, shifts)).toBe("Already on this shift")
   })
 
   it("allowOverlap skips the overlap check but still blocks the identical shift", () => {
@@ -110,7 +110,7 @@ describe("checkAssignment", () => {
       dayOfWeek: 0,
     })
     expect(r).toEqual({ ok: false, reason: "overlap", conflictShiftId: "am" })
-    expect(describeBlock(r, shifts)).toBe("Overlaps 07:00–15:00")
+    expect(describeBlock(r, shifts)).toBe("Overlaps the 07:00–15:00 shift")
   })
 
   it("ignores the assignment being changed", () => {
@@ -165,7 +165,7 @@ describe("checkAssignment", () => {
       overMax: { staffName: "Sam", hours: 16, maxWeeklyHours: 8 },
     })
     expect(describeBlock(over, shifts)).toBe(
-      "Would exceed max hours: Sam 16h of 8h"
+      "Sam would reach 16h (limit 8h)"
     )
   })
 

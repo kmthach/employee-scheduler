@@ -169,5 +169,5 @@ export function describeConflict(
 ): string {
   const name =
     staff.find((s) => s.id === conflict.staffId)?.name ?? "An employee"
-  return `${name} would have overlapping shifts on ${dayNames[conflict.dayOfWeek]}.`
+  return `${name} has overlapping shifts on ${dayNames[conflict.dayOfWeek]}.`
 }

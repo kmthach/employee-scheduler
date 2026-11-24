@@ -87,9 +87,9 @@ export function parseTransactionRows(input: string[][]): ParseResult {
   if (headerIndex === rows.length)
     return {
       ok: false,
-      errors: ["No header row with weekday names was found."],
+      errors: ["Couldn't find the row with the days (Monday–Sunday)."],
     }
-  if (headerIndex === 0) warnings.push("No report title row found.")
+  if (headerIndex === 0) warnings.push("No report title found, which is fine.")
 
   const header = rows[headerIndex]
   const errors: string[] = []
@@ -100,7 +100,7 @@ export function parseTransactionRows(input: string[][]): ParseResult {
     if (label === "") continue
     const day = parseWeekdayLabel(label)
     if (day === null) {
-      errors.push(`Header column "${label}" is not a weekday name.`)
+      errors.push(`"${label}" isn't a day of the week.`)
     } else if (seenDays.has(day)) {
       errors.push(
         `Weekday ${DAYS_OF_WEEK[day]} appears more than once in the header.`
@@ -112,13 +112,16 @@ export function parseTransactionRows(input: string[][]): ParseResult {
   }
   if (errors.length === 0 && seenDays.size !== 7) {
     const missing = DAYS_OF_WEEK.filter((_, i) => !seenDays.has(i as DayOfWeek))
-    errors.push(`Expected 7 weekday columns; missing ${missing.join(", ")}.`)
+    errors.push(`Add the missing days: ${missing.join(", ")}.`)
   }
   if (errors.length > 0) return { ok: false, errors: capErrors(errors) }
 
   const dataRows = rows.slice(headerIndex + 1)
   if (dataRows.length === 0)
-    return { ok: false, errors: ["The file has no hourly rows."] }
+    return {
+      ok: false,
+      errors: ["The file has no hourly rows. Add a row for each hour."],
+    }
 
   const cells: TransactionCell[] = []
   const seenHours = new Set<number>()

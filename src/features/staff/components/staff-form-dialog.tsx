@@ -25,7 +25,12 @@ interface Props {
   onSubmit: (inputs: StaffInput[]) => void
 }
 
-export function StaffFormDialog({ open, onOpenChange, staff, onSubmit }: Props) {
+export function StaffFormDialog({
+  open,
+  onOpenChange,
+  staff,
+  onSubmit,
+}: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={staff ? undefined : "sm:max-w-lg"}>
@@ -70,7 +75,10 @@ function StaffForm({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const input = { name, maxWeeklyHours: hours.trim() === "" ? NaN : Number(hours) }
+    const input = {
+      name,
+      maxWeeklyHours: hours.trim() === "" ? NaN : Number(hours),
+    }
     const result = validateStaffInput(input)
     if (!result.ok) {
       setErrors(result.errors)
@@ -84,7 +92,7 @@ function StaffForm({
       <DialogHeader>
         <DialogTitle>Edit employee</DialogTitle>
         <DialogDescription>
-          Maximum weekly hours is a warning threshold, not a hard limit.
+          Employees can't be scheduled beyond their maximum weekly hours.
         </DialogDescription>
       </DialogHeader>
       <div className="grid gap-1.5">
@@ -96,7 +104,9 @@ function StaffForm({
           aria-invalid={!!errors.name}
           autoFocus
         />
-        {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
+        {errors.name && (
+          <p className="text-xs text-destructive">{errors.name}</p>
+        )}
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor="staff-hours">Maximum weekly hours</Label>
@@ -173,18 +183,22 @@ function AddStaffForm({
       <DialogHeader>
         <DialogTitle>Add employees</DialogTitle>
         <DialogDescription>
-          Add one or more employees. Maximum weekly hours is a warning, not a hard limit.
+          Add one or more employees. They can't be scheduled beyond their
+          maximum weekly hours.
         </DialogDescription>
       </DialogHeader>
       <div className="grid max-h-[50vh] gap-3 overflow-y-auto p-0.5">
         <div className="grid grid-cols-[1fr_7rem_2rem] gap-2 text-xs text-muted-foreground">
           <span>Name</span>
-          <span>Max hours / week</span>
+          <span>Max hours per week</span>
         </div>
         {rows.map((row, i) => {
           const rowErrors = errors[i] ?? {}
           return (
-            <div key={row.key} className="grid grid-cols-[1fr_7rem_2rem] items-start gap-2">
+            <div
+              key={row.key}
+              className="grid grid-cols-[1fr_7rem_2rem] items-start gap-2"
+            >
               <div className="grid gap-1">
                 <Input
                   ref={(el) => {
@@ -199,7 +213,9 @@ function AddStaffForm({
                   aria-invalid={!!rowErrors.name}
                   autoFocus={i === 0}
                 />
-                {rowErrors.name && <p className="text-xs text-destructive">{rowErrors.name}</p>}
+                {rowErrors.name && (
+                  <p className="text-xs text-destructive">{rowErrors.name}</p>
+                )}
               </div>
               <div className="grid gap-1">
                 <Input
@@ -207,12 +223,16 @@ function AddStaffForm({
                   inputMode="decimal"
                   step="0.5"
                   value={row.hours}
-                  onChange={(e) => updateRow(row.key, { hours: e.target.value })}
+                  onChange={(e) =>
+                    updateRow(row.key, { hours: e.target.value })
+                  }
                   aria-label={`Employee ${i + 1} maximum weekly hours`}
                   aria-invalid={!!rowErrors.maxWeeklyHours}
                 />
                 {rowErrors.maxWeeklyHours && (
-                  <p className="text-xs text-destructive">{rowErrors.maxWeeklyHours}</p>
+                  <p className="text-xs text-destructive">
+                    {rowErrors.maxWeeklyHours}
+                  </p>
                 )}
               </div>
               <Button
@@ -232,7 +252,12 @@ function AddStaffForm({
           )
         })}
       </div>
-      <Button type="button" variant="ghost" className="justify-self-start" onClick={addRow}>
+      <Button
+        type="button"
+        variant="ghost"
+        className="justify-self-start"
+        onClick={addRow}
+      >
         <Plus /> Add another
       </Button>
       <DialogFooter>

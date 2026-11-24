@@ -144,8 +144,8 @@ function TransactionsEditor({
           Transactions · {formatReportRange(scheduleId)}
         </DialogTitle>
         <DialogDescription>
-          Upload a CSV report to review hourly counts. Nothing is saved until
-          you click Save.
+          Upload your hourly transactions report, check the numbers, then click
+          Save.
         </DialogDescription>
       </DialogHeader>
 
@@ -197,7 +197,7 @@ function TransactionsEditor({
 
       {errors.length > 0 && (
         <Alert variant="destructive">
-          <AlertTitle>The file could not be imported</AlertTitle>
+          <AlertTitle>We couldn't read that file</AlertTitle>
           <AlertDescription>
             <ul className="list-disc pl-4">
               {errors.map((e, i) => (
@@ -233,8 +233,9 @@ function TransactionsEditor({
               <p className="text-xs text-destructive">{perStaffHourError}</p>
             ) : (
               <p className="text-xs text-muted-foreground">
-                Required staff per hour = transactions ÷ this value, rounded up
-                (at least 1). Used by Coverage and Auto-schedule.
+                How many transactions one employee can handle in an hour. Used
+                to work out how many employees each hour needs, in the day view
+                and Auto-schedule.
               </p>
             )}
           </div>
@@ -245,10 +246,10 @@ function TransactionsEditor({
       ) : (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed p-10 text-center">
           <Upload className="size-8 text-muted-foreground" />
-          <p className="font-medium">No transaction data</p>
+          <p className="font-medium">No transactions yet</p>
           <p className="text-sm text-muted-foreground">
-            Upload a transaction report to review and adjust hourly counts. Not
-            sure of the format? Download the template first.
+            Upload your hourly transactions report. Not sure how it should look?
+            Download the template first.
           </p>
         </div>
       )}

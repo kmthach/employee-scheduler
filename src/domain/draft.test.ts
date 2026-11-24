@@ -138,7 +138,13 @@ describe("hasContentChanges", () => {
     staff: [staff("ana", "w")],
     shifts: [shift("s1", "w", "07:00", "15:00")],
     assignments: [
-      { id: "a1", scheduleId: "w", staffId: "ana", shiftId: "s1", dayOfWeek: 0 },
+      {
+        id: "a1",
+        scheduleId: "w",
+        staffId: "ana",
+        shiftId: "s1",
+        dayOfWeek: 0,
+      },
     ],
   }
 
@@ -151,9 +157,7 @@ describe("hasContentChanges", () => {
   })
   it("detects added and removed assignments", () => {
     expect(hasContentChanges(base, { ...base, assignments: [] })).toBe(true)
-    expect(
-      hasContentChanges({ ...base, assignments: [] }, base)
-    ).toBe(true)
+    expect(hasContentChanges({ ...base, assignments: [] }, base)).toBe(true)
   })
   it("detects employee and shift edits", () => {
     expect(

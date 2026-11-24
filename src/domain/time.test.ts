@@ -25,7 +25,9 @@ describe("formatTime", () => {
 describe("shiftDurationHours", () => {
   it("computes whole and half hours", () => {
     expect(shiftDurationHours({ startTime: "07:00", endTime: "15:00" })).toBe(8)
-    expect(shiftDurationHours({ startTime: "09:00", endTime: "12:30" })).toBe(3.5)
+    expect(shiftDurationHours({ startTime: "09:00", endTime: "12:30" })).toBe(
+      3.5
+    )
   })
   it("returns 0 for invalid or non-positive shifts", () => {
     expect(shiftDurationHours({ startTime: "15:00", endTime: "07:00" })).toBe(0)

@@ -13,9 +13,9 @@ interface Props {
 
 /** Why Auto-schedule cannot run yet, or null when it can. */
 function blockedReason(p: Props): string | null {
-  if (!p.hasTransactions) return "Upload transactions first"
+  if (!p.hasTransactions) return "Upload your transactions first"
   if (p.staffCount === 0) return "Add employees first"
-  if (p.shiftCount === 0) return "Add shift templates first"
+  if (p.shiftCount === 0) return "Add shifts first"
   return null
 }
 

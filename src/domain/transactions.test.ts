@@ -93,7 +93,7 @@ describe("parseTransactionRows", () => {
   })
   it("rejects missing weekday columns", () => {
     const rows = sampleRows.map((r) => r.slice(0, 7))
-    expect(fails(rows)).toMatch(/missing Thursday/)
+    expect(fails(rows)).toMatch(/Add the missing days: Thursday/)
   })
   it("rejects duplicate weekday and unknown header", () => {
     const dup = sampleRows.map((r) => [...r])
@@ -101,7 +101,7 @@ describe("parseTransactionRows", () => {
     expect(fails(dup)).toMatch(/more than once/)
     const bad = sampleRows.map((r) => [...r])
     bad[1][2] = "Foo"
-    expect(fails(bad)).toMatch(/not a weekday/)
+    expect(fails(bad)).toMatch(/isn.t a day of the week/)
   })
   it("rejects bad cells with row and column", () => {
     for (const bad of ["abc", "-3", "1.5", ""]) {

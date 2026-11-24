@@ -114,7 +114,7 @@ export function AssignmentCell({
         <button
           type="button"
           aria-label={`Remove ${label(shift)} on ${dayName}`}
-          title="Remove"
+          title="Remove shift"
           onClick={() => removeAssignment(a.id)}
           className={cn(
             "absolute top-1/2 right-1.5 flex size-4 -translate-y-1/2 items-center justify-center rounded-full opacity-0 transition-all outline-none group-hover/assignment:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring",
@@ -136,7 +136,7 @@ export function AssignmentCell({
     // It is only impossible when the shift template itself was deleted (Discard changes restores it).
     const reason = shifts.some((s) => s.id === a.shiftId)
       ? null
-      : "Shift template deleted"
+      : "Shift deleted"
     return (
       <div
         key={a.id}
@@ -194,7 +194,7 @@ export function AssignmentCell({
           <DropdownMenuContent className="w-56">
             {shifts.length === 0 ? (
               <DropdownMenuItem onClick={onOpenShifts}>
-                No shifts — manage shifts…
+                No shifts yet — add one…
               </DropdownMenuItem>
             ) : (
               shifts

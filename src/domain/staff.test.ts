@@ -12,15 +12,25 @@ import type { Assignment, Staff } from "./types"
 
 describe("validateStaffInput", () => {
   it("accepts valid input", () => {
-    expect(validateStaffInput({ name: " Alex ", maxWeeklyHours: 40 }).ok).toBe(true)
+    expect(validateStaffInput({ name: " Alex ", maxWeeklyHours: 40 }).ok).toBe(
+      true
+    )
   })
   it("rejects empty or too-long names", () => {
-    expect(validateStaffInput({ name: "  ", maxWeeklyHours: 40 }).errors.name).toBeDefined()
-    expect(validateStaffInput({ name: "x".repeat(61), maxWeeklyHours: 40 }).errors.name).toBeDefined()
+    expect(
+      validateStaffInput({ name: "  ", maxWeeklyHours: 40 }).errors.name
+    ).toBeDefined()
+    expect(
+      validateStaffInput({ name: "x".repeat(61), maxWeeklyHours: 40 }).errors
+        .name
+    ).toBeDefined()
   })
   it("rejects invalid hours", () => {
     for (const h of [0, -5, 169, NaN, Infinity]) {
-      expect(validateStaffInput({ name: "A", maxWeeklyHours: h }).errors.maxWeeklyHours).toBeDefined()
+      expect(
+        validateStaffInput({ name: "A", maxWeeklyHours: h }).errors
+          .maxWeeklyHours
+      ).toBeDefined()
     }
     expect(validateStaffInput({ name: "A", maxWeeklyHours: 168 }).ok).toBe(true)
   })
@@ -34,12 +44,21 @@ describe("staff mutations", () => {
   it("adds trimmed staff to the given schedule without mutating", () => {
     const next = addStaff(base, "A", { name: " Kim ", maxWeeklyHours: 20 }, "3")
     expect(next).toHaveLength(3)
-    expect(next[2]).toEqual({ id: "3", scheduleId: "A", name: "Kim", maxWeeklyHours: 20 })
+    expect(next[2]).toEqual({
+      id: "3",
+      scheduleId: "A",
+      name: "Kim",
+      maxWeeklyHours: 20,
+    })
     expect(base).toHaveLength(2)
   })
   it("updates only the target employee", () => {
     const next = updateStaff(base, "1", { name: "Alexa", maxWeeklyHours: 30 })
-    expect(next[0]).toMatchObject({ name: "Alexa", maxWeeklyHours: 30, scheduleId: "A" })
+    expect(next[0]).toMatchObject({
+      name: "Alexa",
+      maxWeeklyHours: 30,
+      scheduleId: "A",
+    })
     expect(next[1]).toEqual(base[1])
   })
   it("removes an employee and cascades their assignments only", () => {
@@ -56,7 +75,9 @@ describe("staff mutations", () => {
 describe("addStaffBatch", () => {
   it("appends all employees in order with unique ids and trimmed names", () => {
     let n = 0
-    const base: Staff[] = [{ id: "0", scheduleId: "A", name: "Old", maxWeeklyHours: 10 }]
+    const base: Staff[] = [
+      { id: "0", scheduleId: "A", name: "Old", maxWeeklyHours: 10 },
+    ]
     const next = addStaffBatch(
       base,
       "A",

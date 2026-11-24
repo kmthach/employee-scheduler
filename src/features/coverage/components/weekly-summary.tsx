@@ -19,24 +19,24 @@ export function WeeklySummary({ week }: Props) {
       note: "All hours, Monday–Sunday",
     },
     {
-      label: "Staff hours",
+      label: "Hours worked",
       value: `${count(week.totalStaffHours)}h`,
-      note: "Employees working, summed over every hour",
+      note: "Total employee hours scheduled this week",
     },
     {
       label: "Txn / staff hr",
       value: formatRatio(week.overallRatio),
-      note: "Total transactions ÷ total staff hours (weekly productivity)",
+      note: "Total transactions ÷ total hours worked, for the whole week",
     },
     {
-      label: "Avg hourly ratio",
+      label: "Typical hour",
       value: formatRatio(week.averageHourlyRatio),
-      note: "Mean of the hourly transactions per staff hour, staffed hours only",
+      note: "Transactions per employee in an average hour, counting only hours that had staff",
     },
     {
       label: "Understaffed",
       value: `${count(week.understaffedHours)}h`,
-      note: "Staff-hours short of the required staffing",
+      note: "Hours where you have fewer employees than needed",
       warn: week.understaffedHours > 0,
     },
   ]

@@ -92,12 +92,8 @@ export function hasContentChanges(
 ): boolean {
   const signature = (c: ScheduleContent) =>
     JSON.stringify({
-      staff: c.staff
-        .map((x) => `${x.id}|${x.name}|${x.maxWeeklyHours}`)
-        .sort(),
-      shifts: c.shifts
-        .map((x) => `${x.id}|${x.startTime}|${x.endTime}`)
-        .sort(),
+      staff: c.staff.map((x) => `${x.id}|${x.name}|${x.maxWeeklyHours}`).sort(),
+      shifts: c.shifts.map((x) => `${x.id}|${x.startTime}|${x.endTime}`).sort(),
       assignments: c.assignments.map(assignmentKey).sort(),
     })
   return signature(published) !== signature(working)

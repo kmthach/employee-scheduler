@@ -319,7 +319,7 @@ export function RosterGrid({
               <TableBody>
                 <TableRow className="border-0 bg-muted font-medium hover:bg-muted">
                   <TableCell className="py-2">
-                    <div>Total assigned hours</div>
+                    <div>Total hours scheduled</div>
                     <div className="text-xs font-normal text-muted-foreground">
                       {weekTotal}h
                     </div>
@@ -365,7 +365,9 @@ function HoursLabel({ assigned, max }: { assigned: number; max: number }) {
         "flex items-center gap-1 text-xs font-normal text-muted-foreground",
         status === "over" && "font-medium text-amber-600 dark:text-amber-400"
       )}
-      title={status === "over" ? "Over maximum weekly hours" : undefined}
+      title={
+        status === "over" ? "Over this employee's weekly hour limit" : undefined
+      }
     >
       {status === "over" && <AlertTriangle className="size-3" />}
       {assigned}h / {max}h

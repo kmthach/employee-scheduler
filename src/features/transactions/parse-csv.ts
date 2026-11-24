@@ -9,16 +9,15 @@ const MAX_BYTES = 1_000_000
 export async function parseTransactionFile(file: File): Promise<ParseResult> {
   const looksLikeCsv =
     file.name.toLowerCase().endsWith(".csv") || file.type.startsWith("text/")
-  if (!looksLikeCsv)
-    return { ok: false, errors: ["Please choose a .csv file."] }
+  if (!looksLikeCsv) return { ok: false, errors: ["Choose a CSV file (.csv)."] }
   if (file.size > MAX_BYTES)
-    return { ok: false, errors: ["The file is too large (limit 1 MB)."] }
+    return { ok: false, errors: ["That file is too big (1 MB max)."] }
 
   let text: string
   try {
     text = await file.text()
   } catch {
-    return { ok: false, errors: ["The file could not be read."] }
+    return { ok: false, errors: ["That file couldn't be opened."] }
   }
   return parseTransactionCsv(text)
 }
@@ -32,7 +31,7 @@ export function parseTransactionCsv(text: string): ParseResult {
   if (fatal)
     return {
       ok: false,
-      errors: [`The file is not valid CSV: ${fatal.message}`],
+      errors: ["That doesn't look like a valid CSV file."],
     }
   return parseTransactionRows(parsed.data.map(unwrapQuotedLine))
 }

@@ -17,7 +17,12 @@ interface Props {
   onConfirm: (id: string) => void
 }
 
-export function DeleteStaffDialog({ staff, assignmentCount, onOpenChange, onConfirm }: Props) {
+export function DeleteStaffDialog({
+  staff,
+  assignmentCount,
+  onOpenChange,
+  onConfirm,
+}: Props) {
   return (
     <AlertDialog open={staff !== null} onOpenChange={onOpenChange}>
       <AlertDialogContent>
@@ -25,14 +30,17 @@ export function DeleteStaffDialog({ staff, assignmentCount, onOpenChange, onConf
           <AlertDialogTitle>Delete {staff?.name}?</AlertDialogTitle>
           <AlertDialogDescription>
             {assignmentCount > 0
-              ? `This also removes ${assignmentCount} assigned shift${assignmentCount === 1 ? "" : "s"} from this schedule.`
-              : "This employee has no assigned shifts."}{" "}
+              ? `This also removes their ${assignmentCount} shift${assignmentCount === 1 ? "" : "s"} from this week.`
+              : "They have no shifts this week."}{" "}
             This can't be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" onClick={() => staff && onConfirm(staff.id)}>
+          <AlertDialogAction
+            variant="destructive"
+            onClick={() => staff && onConfirm(staff.id)}
+          >
             Delete
           </AlertDialogAction>
         </AlertDialogFooter>

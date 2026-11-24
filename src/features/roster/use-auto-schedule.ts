@@ -31,7 +31,7 @@ export function useAutoSchedule() {
       setState({
         status: "error",
         error:
-          "Auto-scheduling needs a cross-origin isolated page (COOP/COEP headers), which this host does not send. See the README.",
+          "Auto-schedule can't run on this website setup. Ask whoever hosts the app to enable it (see the README).",
       })
       return
     }
@@ -62,7 +62,10 @@ export function useAutoSchedule() {
       }
       setState({
         status: "error",
-        error: e instanceof Error ? e.message : "Auto-scheduling failed.",
+        error:
+          e instanceof Error
+            ? e.message
+            : "Auto-schedule couldn't finish. Please try again.",
       })
     } finally {
       if (controller.current === abort) controller.current = null

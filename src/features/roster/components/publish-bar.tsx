@@ -82,8 +82,8 @@ export function PublishBar({
           <AlertDialogHeader>
             <AlertDialogTitle>Discard changes?</AlertDialogTitle>
             <AlertDialogDescription>
-              All unpublished changes are removed and the last published
-              schedule is restored. This can't be undone.
+              Your unpublished changes will be lost and the last published
+              schedule will come back. This can't be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

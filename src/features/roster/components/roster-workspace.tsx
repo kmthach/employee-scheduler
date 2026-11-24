@@ -1,4 +1,4 @@
-import { CalendarPlus, Clock, Copy, Plus, Upload } from "lucide-react"
+import { CalendarPlus, Clock, Copy, Loader2, Plus, Upload } from "lucide-react"
 import { useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -206,26 +206,42 @@ export function RosterWorkspace() {
             </div>
           </div>
           <AutoScheduleError auto={auto} />
-          <RosterGrid
-            scheduleId={scheduleId}
-            staff={staff}
-            shifts={shifts}
-            assignments={assignments}
-            published={published}
-            coverage={transactions.length > 0 ? coverage : undefined}
-            selectedDay={drawerDay}
-            onSelectDay={setOpenDay}
-            onOpenShifts={() => setShiftsOpen(true)}
-            onAddStaff={() => {
-              setEditing(null)
-              setFormOpen(true)
-            }}
-            onDeleteStaff={setDeleting}
-            onEditStaff={(s) => {
-              setEditing(s)
-              setFormOpen(true)
-            }}
-          />
+          <div
+            className="relative flex min-h-0 flex-col"
+            aria-busy={auto.status === "running"}
+          >
+            <RosterGrid
+              scheduleId={scheduleId}
+              staff={staff}
+              shifts={shifts}
+              assignments={assignments}
+              published={published}
+              coverage={transactions.length > 0 ? coverage : undefined}
+              selectedDay={drawerDay}
+              onSelectDay={setOpenDay}
+              onOpenShifts={() => setShiftsOpen(true)}
+              onAddStaff={() => {
+                setEditing(null)
+                setFormOpen(true)
+              }}
+              onDeleteStaff={setDeleting}
+              onEditStaff={(s) => {
+                setEditing(s)
+                setFormOpen(true)
+              }}
+            />
+            {auto.status === "running" && (
+              <div
+                role="status"
+                className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-background/60 backdrop-blur-xs"
+              >
+                <div className="flex items-center gap-2 text-base font-medium">
+                  <Loader2 className="size-4 animate-spin" />
+                  Auto scheduling…
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <TransactionsDialog

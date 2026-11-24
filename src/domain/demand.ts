@@ -36,7 +36,7 @@ export const MAX_TRANSACTIONS_PER_STAFF_HOUR = 1000
 /** Error message for an unusable value, or null when it is a whole number from 1 to 1000. */
 export function validateTransactionsPerStaffHour(value: number): string | null {
   if (!Number.isInteger(value) || value < 1) {
-    return "Enter a whole number of at least 1."
+    return "Enter a whole number from 1 to 1000."
   }
   if (value > MAX_TRANSACTIONS_PER_STAFF_HOUR) {
     return `Enter ${MAX_TRANSACTIONS_PER_STAFF_HOUR} or less.`

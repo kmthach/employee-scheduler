@@ -216,7 +216,9 @@ export async function generateSchedule(
     ])
   }
   if (shifts.length === 0) {
-    return emptyResult(input, perStaffHour, ["No valid shift templates."])
+    return emptyResult(input, perStaffHour, [
+      "There are no usable shifts to schedule.",
+    ])
   }
 
   const required = requiredGrid(input, perStaffHour)

@@ -14,7 +14,9 @@ export function formatTime(minutes: number): string {
 }
 
 /** Shift length in hours; 0 if times are invalid or end is not after start. */
-export function shiftDurationHours(shift: Pick<Shift, "startTime" | "endTime">): number {
+export function shiftDurationHours(
+  shift: Pick<Shift, "startTime" | "endTime">
+): number {
   const start = parseTime(shift.startTime)
   const end = parseTime(shift.endTime)
   if (start === null || end === null || end <= start) return 0
@@ -30,6 +32,7 @@ export function timesOverlap(
   const aEnd = parseTime(a.endTime)
   const bStart = parseTime(b.startTime)
   const bEnd = parseTime(b.endTime)
-  if (aStart === null || aEnd === null || bStart === null || bEnd === null) return false
+  if (aStart === null || aEnd === null || bStart === null || bEnd === null)
+    return false
   return aStart < bEnd && bStart < aEnd
 }
