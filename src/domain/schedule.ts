@@ -102,7 +102,12 @@ export function createSchedule(
   }
   const timestamp = now.toISOString()
   return {
-    schedule: { id: scheduleId, status: "draft", createdAt: timestamp, updatedAt: timestamp },
+    schedule: {
+      id: scheduleId,
+      status: "draft",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
     shifts: setup.shifts.map((t) => ({
       id: newId(),
       scheduleId,
@@ -157,4 +162,43 @@ export function copyScheduleContent(
     scheduleId: targetId,
   }))
   return { staff, shifts, assignments, transactions }
+}
+
+/** The schedule-owned slices of store state that deleting a week must clean up. */
+export interface DeletableScheduleState {
+  schedules: Schedule[]
+  staff: Staff[]
+  shifts: Shift[]
+  assignments: Assignment[]
+  transactions: TransactionRecord[]
+  publishedSnapshots: Record<string, ScheduleContent>
+  autoRemovedKeys: Record<string, string[]>
+  transactionsPerStaffHour: Record<string, number>
+  transactionReports: Record<
+    string,
+    { fileName: string | null; reportRange?: string; savedAt: string }
+  >
+}
+
+function omitKey<T>(record: Record<string, T>, id: string): Record<string, T> {
+  return Object.fromEntries(Object.entries(record).filter(([k]) => k !== id))
+}
+
+/** Removes a schedule and everything it owns. Other weeks are untouched. */
+export function deleteScheduleData<S extends DeletableScheduleState>(
+  state: S,
+  id: string
+): DeletableScheduleState {
+  const notThis = (row: { scheduleId: string }) => row.scheduleId !== id
+  return {
+    schedules: state.schedules.filter((x) => x.id !== id),
+    staff: state.staff.filter(notThis),
+    shifts: state.shifts.filter(notThis),
+    assignments: state.assignments.filter(notThis),
+    transactions: state.transactions.filter(notThis),
+    publishedSnapshots: omitKey(state.publishedSnapshots, id),
+    autoRemovedKeys: omitKey(state.autoRemovedKeys, id),
+    transactionsPerStaffHour: omitKey(state.transactionsPerStaffHour, id),
+    transactionReports: omitKey(state.transactionReports, id),
+  }
 }

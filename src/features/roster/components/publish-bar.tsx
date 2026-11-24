@@ -64,14 +64,14 @@ export function PublishBar({
           {isDraft && snapshot && hasChanges && (
             <Button
               variant="ghost"
-              className="h-9 rounded-md text-muted-foreground"
+              className="h-9 text-muted-foreground"
               onClick={() => setConfirmDiscard(true)}
             >
               <Undo2 /> Discard changes
             </Button>
           )}
           <Button
-            className="h-9 rounded-full px-5 font-semibold"
+            className="h-9 px-5 font-semibold"
             onClick={publish}
             disabled={!isDraft || unchanged || !validation.ok}
           >

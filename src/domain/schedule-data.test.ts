@@ -9,7 +9,10 @@ describe("filterBySchedule", () => {
     { id: "3", scheduleId: "2026-11-16" },
   ]
   it("returns only rows for the given schedule", () => {
-    expect(filterBySchedule(rows, "2026-11-16").map((r) => r.id)).toEqual(["1", "3"])
+    expect(filterBySchedule(rows, "2026-11-16").map((r) => r.id)).toEqual([
+      "1",
+      "3",
+    ])
   })
   it("returns nothing for an unknown schedule", () => {
     expect(filterBySchedule(rows, "2026-11-30")).toEqual([])

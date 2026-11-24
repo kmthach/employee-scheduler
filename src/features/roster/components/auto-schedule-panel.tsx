@@ -1,33 +1,14 @@
 import { AlertTriangle } from "lucide-react"
-import { useState } from "react"
 
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { validateTransactionsPerStaffHour } from "@/domain/demand"
-import {
-  getTransactionsPerStaffHour,
-  useScheduleStore,
-} from "@/store/schedule-store"
 
 import { useAutoSchedule } from "../use-auto-schedule"
 
 interface Props {
-  scheduleId: string
   staffCount: number
   shiftCount: number
   hasTransactions: boolean
-  assignmentCount: number
-  isPublished: boolean
 }
 
 /** Why Auto-schedule cannot run yet, or null when it can. */
@@ -41,103 +22,19 @@ function blockedReason(p: Props): string | null {
 export function AutoScheduleButton(
   props: Props & { auto: ReturnType<typeof useAutoSchedule> }
 ) {
-  const { auto, assignmentCount, isPublished } = props
-  const [open, setOpen] = useState(false)
-  const saved = useScheduleStore((s) =>
-    getTransactionsPerStaffHour(s, props.scheduleId)
-  )
-  const [text, setText] = useState(String(saved))
+  const { auto } = props
   const reason = blockedReason(props)
-  const running = auto.status === "running"
-
-  const value = text.trim() === "" ? NaN : Number(text)
-  const error = validateTransactionsPerStaffHour(value)
-
-  function submit() {
-    if (error) return
-    setOpen(false)
-    auto.run(value)
-  }
 
   return (
-    <>
-      <Button
-        variant="secondary"
-        className="h-9"
-        disabled={reason !== null || running}
-        title={reason ?? undefined}
-        onClick={() => {
-          setText(String(saved)) // the viewed week's saved value (15 by default)
-          setOpen(true)
-        }}
-      >
-        Auto-schedule
-      </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <form
-            className="grid gap-4"
-            onSubmit={(e) => {
-              e.preventDefault()
-              submit()
-            }}
-          >
-            <DialogHeader>
-              <DialogTitle>Auto-schedule this week</DialogTitle>
-              <DialogDescription>
-                Generates an editable draft. Employees never exceed their
-                maximum weekly hours.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-1.5">
-              <Label htmlFor="tx-per-staff-hour">
-                Transactions per employee per hour
-              </Label>
-              <Input
-                id="tx-per-staff-hour"
-                type="number"
-                inputMode="numeric"
-                min={1}
-                step={1}
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                aria-invalid={!!error}
-                autoFocus
-              />
-              {error ? (
-                <p className="text-xs text-destructive">{error}</p>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  Required staff per hour = transactions ÷ this value, rounded
-                  up (at least 1). Lower values mean more staff are needed.
-                </p>
-              )}
-            </div>
-            {assignmentCount > 0 && (
-              <p className="text-sm text-amber-700 dark:text-amber-400">
-                This replaces all {assignmentCount} current assignment
-                {assignmentCount === 1 ? "" : "s"}, including any you added by
-                hand, with a new draft. You can undo it right afterwards.
-                {isPublished &&
-                  " The published version is kept until you publish."}
-              </p>
-            )}
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={error !== null}>
-                Generate draft
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </>
+    <Button
+      variant="secondary"
+      className="h-9"
+      disabled={reason !== null || auto.status === "running"}
+      title={reason ?? undefined}
+      onClick={() => auto.run()}
+    >
+      Auto-schedule
+    </Button>
   )
 }
 

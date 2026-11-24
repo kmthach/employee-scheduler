@@ -11,6 +11,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { validateTransactionsPerStaffHour } from "@/domain/demand"
 import {
   buildTemplateCsv,
   buildTransactionCsv,
@@ -23,7 +26,10 @@ import {
 } from "@/domain/transactions"
 import type { GridValues } from "@/domain/transactions"
 import type { TransactionRecord } from "@/domain/types"
-import { useScheduleStore } from "@/store/schedule-store"
+import {
+  getTransactionsPerStaffHour,
+  useScheduleStore,
+} from "@/store/schedule-store"
 import type { TransactionReport } from "@/store/schedule-store"
 
 import { parseTransactionFile } from "../parse-csv"
@@ -65,6 +71,10 @@ function TransactionsEditor({
   report,
 }: Props) {
   const saveTransactions = useScheduleStore((s) => s.saveTransactions)
+  const setPerStaffHour = useScheduleStore((s) => s.setTransactionsPerStaffHour)
+  const savedPerStaffHour = useScheduleStore((s) =>
+    getTransactionsPerStaffHour(s, scheduleId)
+  )
   const fileInput = useRef<HTMLInputElement>(null)
 
   const [initial] = useState(() => recordsToGrid(saved))
@@ -78,11 +88,19 @@ function TransactionsEditor({
     reportRange: report?.reportRange,
     warnings: [],
   })
+  const [perStaffHourText, setPerStaffHourText] = useState(
+    String(savedPerStaffHour)
+  )
   const [errors, setErrors] = useState<string[]>([])
   const [confirmDiscard, setConfirmDiscard] = useState(false)
 
   const cells = gridToCells(values)
-  const dirty = JSON.stringify(values) !== JSON.stringify(initial)
+  const perStaffHour =
+    perStaffHourText.trim() === "" ? NaN : Number(perStaffHourText)
+  const perStaffHourError = validateTransactionsPerStaffHour(perStaffHour)
+  const dirty =
+    JSON.stringify(values) !== JSON.stringify(initial) ||
+    perStaffHour !== savedPerStaffHour
   const hadSaved = saved.length > 0
   const hasTable = cells.length > 0
 
@@ -107,6 +125,7 @@ function TransactionsEditor({
       buildTransactionRecords(scheduleId, cells, () => crypto.randomUUID()),
       { ...source, savedAt: new Date().toISOString() }
     )
+    setPerStaffHour(scheduleId, perStaffHour)
     onOpenChange(false)
   }
 
@@ -195,6 +214,30 @@ function TransactionsEditor({
       )}
       {hasTable ? (
         <>
+          <div className="grid gap-1.5">
+            <Label htmlFor="tx-per-staff-hour">
+              Transactions per employee per hour
+            </Label>
+            <Input
+              id="tx-per-staff-hour"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              step={1}
+              className="w-40"
+              value={perStaffHourText}
+              onChange={(e) => setPerStaffHourText(e.target.value)}
+              aria-invalid={!!perStaffHourError}
+            />
+            {perStaffHourError ? (
+              <p className="text-xs text-destructive">{perStaffHourError}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Required staff per hour = transactions ÷ this value, rounded up
+                (at least 1). Used by Coverage and Auto-schedule.
+              </p>
+            )}
+          </div>
           <div className="max-h-[50vh] overflow-auto">
             <TransactionGrid scheduleId={scheduleId} values={values} />
           </div>
@@ -232,7 +275,10 @@ function TransactionsEditor({
               Cancel
             </Button>
             {hasTable && (
-              <Button onClick={save} disabled={!dirty}>
+              <Button
+                onClick={save}
+                disabled={!dirty || perStaffHourError !== null}
+              >
                 Save
               </Button>
             )}

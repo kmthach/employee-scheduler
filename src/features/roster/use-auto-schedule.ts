@@ -19,13 +19,10 @@ export function useAutoSchedule() {
   const [state, setState] = useState<AutoScheduleState>({ status: "idle" })
   const controller = useRef<AbortController | null>(null)
 
-  /** Generates for the viewed week; `perStaffHour` is remembered for it (Retry reuses the saved value). */
-  const run = useCallback(async (perStaffHour?: number) => {
+  /** Generates for the viewed week using its saved transactions-per-employee-hour value. */
+  const run = useCallback(async () => {
     const store = useScheduleStore.getState()
     const scheduleId = store.currentScheduleId
-    if (perStaffHour !== undefined) {
-      store.setTransactionsPerStaffHour(scheduleId, perStaffHour)
-    }
     const transactionsPerStaffHour = getTransactionsPerStaffHour(
       useScheduleStore.getState(),
       scheduleId

@@ -1,6 +1,7 @@
 import { create } from "zustand"
 
 import { getScheduleId, moveWeek } from "@/domain/date"
+import { loadState } from "@/storage/persistence"
 import {
   DEFAULT_TRANSACTIONS_PER_STAFF_HOUR,
   validateTransactionsPerStaffHour,
@@ -23,6 +24,7 @@ import type { PublishValidation } from "@/domain/draft"
 import {
   copyScheduleContent,
   createSchedule,
+  deleteScheduleData,
   findSourceScheduleId,
 } from "@/domain/schedule"
 import type { NewScheduleSetup } from "@/domain/schedule"
@@ -85,6 +87,12 @@ interface ScheduleState {
   /** Demand data per schedule. Not roster content, so it is outside draft/publish snapshots. */
   transactions: TransactionRecord[]
   transactionReports: Record<string, TransactionReport>
+  /** False until saved data has been read from IndexedDB; saving is disabled before that. */
+  hydrated: boolean
+  persistenceError: PersistenceError | null
+  /** Loads saved data (once at startup). Unreadable data is set aside and the app starts empty. */
+  hydrate: () => Promise<void>
+  setPersistenceError: (error: PersistenceError | null) => void
   goToPreviousWeek: () => void
   goToNextWeek: () => void
   goToCurrentWeek: () => void
@@ -99,6 +107,8 @@ interface ScheduleState {
    * latest earlier schedule. No-op if the week exists or there is no earlier schedule.
    */
   copyPreviousSchedule: () => void
+  /** Deletes the viewed week and everything it owns. No-op if it doesn't exist. */
+  deleteSchedule: () => void
   addStaffMany: (inputs: StaffInput[]) => void
   updateStaff: (id: string, input: StaffInput) => void
   deleteStaff: (id: string) => void
@@ -131,6 +141,8 @@ interface ScheduleState {
   /** Throws away pending changes to a published schedule, restoring its published content. */
   discardDraft: () => void
 }
+
+export type PersistenceError = "load" | "corrupt" | "save"
 
 export interface TransactionReport {
   /** Source file name, or null when entered manually. */
@@ -202,6 +214,26 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
   transactionsPerStaffHour: {},
   transactions: [],
   transactionReports: {},
+  hydrated: false,
+  persistenceError: null,
+
+  hydrate: async () => {
+    const result = await loadState()
+    if (result.status === "ok") {
+      set({ ...result.data, hydrated: true, persistenceError: null })
+    } else {
+      set({
+        hydrated: true,
+        persistenceError:
+          result.status === "corrupt"
+            ? "corrupt"
+            : result.status === "error"
+              ? "load"
+              : null,
+      })
+    }
+  },
+  setPersistenceError: (persistenceError) => set({ persistenceError }),
 
   goToPreviousWeek: () =>
     set((s) => ({ currentScheduleId: moveWeek(s.currentScheduleId, -1) })),
@@ -236,6 +268,17 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
               },
             }
           : s.transactionReports,
+      }
+    }),
+
+  deleteSchedule: () =>
+    set((s) => {
+      const id = s.currentScheduleId
+      if (!s.schedules.some((x) => x.id === id)) return s
+      return {
+        ...deleteScheduleData(s, id),
+        autoScheduleUndo:
+          s.autoScheduleUndo?.scheduleId === id ? null : s.autoScheduleUndo,
       }
     }),
 

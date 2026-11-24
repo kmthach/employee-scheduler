@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   copyScheduleContent,
   createSchedule,
+  deleteScheduleData,
   findSourceScheduleId,
   getDefaultSetup,
   getSetupFromSource,
@@ -77,7 +78,11 @@ describe("createSchedule with a setup", () => {
     expect(created.transactions).toMatchObject([
       { dayOfWeek: 0, hour: 8, transactionCount: 12 },
     ])
-    for (const row of [...created.shifts, ...created.staff, ...created.transactions])
+    for (const row of [
+      ...created.shifts,
+      ...created.staff,
+      ...created.transactions,
+    ])
       expect(row.scheduleId).toBe("2026-11-23")
   })
   it("default setup is the two default shifts and nothing else", () => {
@@ -91,12 +96,26 @@ describe("createSchedule with a setup", () => {
 describe("source rows", () => {
   const source = {
     staff: [{ id: "s1", scheduleId: "A", name: "Ana", maxWeeklyHours: 30 }],
-    shifts: [{ id: "h1", scheduleId: "A", startTime: "07:00", endTime: "15:00" }],
+    shifts: [
+      { id: "h1", scheduleId: "A", startTime: "07:00", endTime: "15:00" },
+    ],
     assignments: [
-      { id: "a1", scheduleId: "A", staffId: "s1", shiftId: "h1", dayOfWeek: 2 as const },
+      {
+        id: "a1",
+        scheduleId: "A",
+        staffId: "s1",
+        shiftId: "h1",
+        dayOfWeek: 2 as const,
+      },
     ],
     transactions: [
-      { id: "t1", scheduleId: "A", dayOfWeek: 2 as const, hour: 9, transactionCount: 5 },
+      {
+        id: "t1",
+        scheduleId: "A",
+        dayOfWeek: 2 as const,
+        hour: 9,
+        transactionCount: 5,
+      },
     ],
   }
 
@@ -135,5 +154,87 @@ describe("source rows", () => {
     const snapshot = JSON.stringify(source)
     copyScheduleContent(source, "B", () => crypto.randomUUID())
     expect(JSON.stringify(source)).toBe(snapshot)
+  })
+})
+
+describe("deleteScheduleData", () => {
+  const sch = (id: string) => ({
+    id,
+    status: "draft" as const,
+    createdAt: "t",
+    updatedAt: "t",
+  })
+  const state = {
+    schedules: [sch("A"), sch("B")],
+    staff: [
+      { id: "s1", scheduleId: "A", name: "a", maxWeeklyHours: 40 },
+      { id: "s2", scheduleId: "B", name: "b", maxWeeklyHours: 40 },
+    ],
+    shifts: [
+      { id: "h1", scheduleId: "A", startTime: "07:00", endTime: "15:00" },
+      { id: "h2", scheduleId: "B", startTime: "07:00", endTime: "15:00" },
+    ],
+    assignments: [
+      {
+        id: "1",
+        scheduleId: "A",
+        staffId: "s1",
+        shiftId: "h1",
+        dayOfWeek: 0 as const,
+      },
+      {
+        id: "2",
+        scheduleId: "B",
+        staffId: "s2",
+        shiftId: "h2",
+        dayOfWeek: 0 as const,
+      },
+    ],
+    transactions: [
+      {
+        id: "t1",
+        scheduleId: "A",
+        dayOfWeek: 0 as const,
+        hour: 9,
+        transactionCount: 5,
+      },
+      {
+        id: "t2",
+        scheduleId: "B",
+        dayOfWeek: 0 as const,
+        hour: 9,
+        transactionCount: 5,
+      },
+    ],
+    publishedSnapshots: {
+      A: { staff: [], shifts: [], assignments: [] },
+      B: { staff: [], shifts: [], assignments: [] },
+    },
+    autoRemovedKeys: { A: ["x"], B: ["y"] },
+    transactionsPerStaffHour: { A: 10, B: 12 },
+    transactionReports: {
+      A: { fileName: null, savedAt: "t" },
+      B: { fileName: null, savedAt: "t" },
+    },
+  }
+
+  it("removes the week and everything it owns, leaving other weeks alone", () => {
+    const r = deleteScheduleData(state, "A")
+    expect(r.schedules.map((x) => x.id)).toEqual(["B"])
+    for (const rows of [r.staff, r.shifts, r.assignments, r.transactions]) {
+      expect(rows.map((x) => x.scheduleId)).toEqual(["B"])
+    }
+    for (const rec of [
+      r.publishedSnapshots,
+      r.autoRemovedKeys,
+      r.transactionsPerStaffHour,
+      r.transactionReports,
+    ]) {
+      expect(Object.keys(rec)).toEqual(["B"])
+    }
+  })
+
+  it("is a no-op for an unknown id", () => {
+    expect(deleteScheduleData(state, "Z")).toEqual(state)
   })
 })

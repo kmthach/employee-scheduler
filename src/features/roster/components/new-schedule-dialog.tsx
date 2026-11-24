@@ -541,13 +541,9 @@ function Wizard({ onOpenChange, scheduleId, initial, onCreate }: Props) {
           </Button>
         )}
         {step < STEPS.length - 1 ? (
-          <Button className="rounded-full" onClick={next}>
-            Next
-          </Button>
+          <Button onClick={next}>Next</Button>
         ) : (
-          <Button className="rounded-full" onClick={create}>
-            Create schedule
-          </Button>
+          <Button onClick={create}>Create schedule</Button>
         )}
       </DialogFooter>
     </>

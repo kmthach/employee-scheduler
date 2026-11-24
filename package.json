@@ -39,6 +39,7 @@
     "eslint": "^10",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.7",
+    "fake-indexeddb": "^6.2.8",
     "globals": "^17",
     "prettier": "^3.9.10",
     "prettier-plugin-tailwindcss": "^0.8.1",

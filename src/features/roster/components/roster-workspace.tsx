@@ -26,6 +26,7 @@ import {
 import { useAutoSchedule } from "../use-auto-schedule"
 import { AutoScheduleButton, AutoScheduleError } from "./auto-schedule-panel"
 import { OverMaxAlert } from "./over-max-alert"
+import { DeleteScheduleButton } from "./delete-schedule-button"
 import { PublishBar } from "./publish-bar"
 import { NewScheduleDialog } from "./new-schedule-dialog"
 import { RosterGrid } from "./roster-grid"
@@ -124,7 +125,6 @@ export function RosterWorkspace() {
             <div className="flex flex-wrap justify-center gap-2">
               <Button
                 variant="outline"
-                className="rounded-md"
                 onClick={() => setNewScheduleOpen(true)}
               >
                 <Plus /> New schedule
@@ -132,7 +132,6 @@ export function RosterWorkspace() {
               {sourceId && (
                 <Button
                   variant="outline"
-                  className="rounded-md"
                   title={`Copies ${formatWeekRange(sourceId)}`}
                   onClick={copyPreviousSchedule}
                 >
@@ -168,29 +167,31 @@ export function RosterWorkspace() {
             <>
               <Button
                 variant="ghost"
-                className="h-9 rounded-md"
+                className="h-9"
                 onClick={() => setTransactionsOpen(true)}
               >
                 <Upload /> Upload transactions
               </Button>
               <Button
                 variant="ghost"
-                className="h-9 rounded-md"
+                className="h-9"
                 onClick={() => setShiftsOpen(true)}
               >
                 <Clock /> Shifts
               </Button>
               <div className="mx-1 h-5 w-px bg-border" aria-hidden />
-              <AutoScheduleButton
-                auto={auto}
+              <DeleteScheduleButton
                 scheduleId={scheduleId}
-                staffCount={staff.length}
-                shiftCount={shifts.length}
-                hasTransactions={transactions.length > 0}
-                assignmentCount={assignments.length}
                 isPublished={
                   published !== undefined || schedule.status === "published"
                 }
+                disabled={auto.status === "running"}
+              />
+              <AutoScheduleButton
+                auto={auto}
+                staffCount={staff.length}
+                shiftCount={shifts.length}
+                hasTransactions={transactions.length > 0}
               />
             </>
           }
@@ -267,7 +268,7 @@ export function RosterWorkspace() {
           onOpenChange={(open) => !open && setOpenDay(null)}
           date={getWeekDays(scheduleId)[drawerDay]}
           day={coverage.days[drawerDay]}
-            onPrev={drawerDay > 0 ? () => setOpenDay(drawerDay - 1) : undefined}
+          onPrev={drawerDay > 0 ? () => setOpenDay(drawerDay - 1) : undefined}
           onNext={drawerDay < 6 ? () => setOpenDay(drawerDay + 1) : undefined}
         />
       )}

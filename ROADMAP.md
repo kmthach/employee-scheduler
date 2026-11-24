@@ -354,18 +354,30 @@ Scope notes:
 
 Tasks:
 
-- [ ] Persist schedules and their data in localStorage.
-- [ ] Restore data after browser refresh.
-- [ ] Handle missing or corrupted stored data.
-- [ ] Add sample/demo data reset functionality.
-- [ ] Test multiple schedules.
-- [ ] Test the complete manager workflow.
+- [x] Persist schedules and their data in IndexedDB.
+- [x] Restore data after browser refresh. (Store-level reload tested; manual browser refresh check pending.)
+- [x] Handle missing or corrupted stored data.
+- [ ] ~~Add sample/demo data reset functionality.~~ Dropped: the Data menu (load demo data / reset) was built, then removed at the user's request.
+- [x] Test multiple schedules. (Three weeks incl. copy-previous and a draft over a published week survive a reload.)
+- [ ] Test the complete manager workflow. (Store-level workflow test added; full browser walkthrough pending.)
 - [ ] Verify calculations against manually calculated examples.
 - [ ] Test edge cases and invalid inputs.
 - [ ] Fix UI inconsistencies.
-- [ ] Check desktop and tablet layouts.
-- [ ] Run the production build.
+- [x] Run the production build.
 - [ ] Prepare the AI usage note.
+
+**Scope notes / decisions:**
+
+- Scope change: persistence uses **IndexedDB instead of localStorage** (CLAUDE.md updated). Dependency-free wrapper in `src/storage/idb.ts`; `fake-indexeddb` added as a dev dependency for tests.
+- The whole persisted slice is saved as one versioned record (`{ version: 1, data }`) so a save is all-or-nothing. Saves are debounced (300 ms) and flushed on tab hide; nothing is written before hydration.
+- `parseStored` validates shape, ranges and referential integrity. Unreadable data is moved to a `state-corrupt-backup` record, the app starts empty and shows a dismissible alert. A failed save shows "Changes are not being saved".
+- Not persisted: Auto-schedule Undo (session-only) and the viewed week (always opens on the current week).
+- Scope change: **Auto-schedule dialog removed.** Auto-schedule now runs immediately with the week's saved transactions-per-employee-hour value (default 15); the field moved to the Upload transactions dialog (validated 1–1000, saved with Save; changing it alone enables Save). Replacing assignments is no longer confirmed; Undo is the safety net. Supersedes the dialog described in Phase 7 follow-up 6. Manual browser check pending.
+- Scope change (UI): **fully rounded buttons.** The shadcn `Button` base is now `rounded-full` for every variant and size (per-size radius overrides removed), and the `rounded-md` / `rounded-full` overrides on individual buttons were dropped. Inputs are fully rounded too (shadcn `Input`, horizontal padding widened). Assignment chips in the roster grid keep their chip shape. Manual browser check pending.
+- New work: **Delete schedule** button (header, left of Auto-schedule) with a confirmation; removes the viewed week and everything it owns (`deleteScheduleData` in `domain/schedule.ts`, store `deleteSchedule`). Disabled while auto-schedule is running. Manual browser check pending.
+- Two tabs: last write wins (no cross-tab sync).
+- Pre-existing, not addressed: two `react-hooks/refs` lint errors in `new-schedule-dialog.tsx`.
+- Still pending: hand-computed calculation examples, edge-case tests, UI consistency pass, manual browser check, AI usage note.
 
 **Completion criteria:**
 

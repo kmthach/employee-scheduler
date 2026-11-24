@@ -538,3 +538,28 @@ describe("transactions per staff hour setting", () => {
     expect(state.autoScheduleUndo).not.toBeNull()
   })
 })
+
+describe("deleteSchedule", () => {
+  it("removes the viewed week with its rows, clears its undo, and keeps other weeks", () => {
+    useScheduleStore.setState({
+      autoScheduleUndo: { scheduleId: "A", assignments: [] },
+    })
+    useScheduleStore.getState().deleteSchedule()
+    const s = useScheduleStore.getState()
+    expect(s.schedules.map((x) => x.id)).toEqual(["B"])
+    expect(s.staff.map((x) => x.id)).toEqual(["s2"])
+    expect(s.shifts.map((x) => x.id)).toEqual(["bm"])
+    expect(s.assignments.map((x) => x.id)).toEqual(["3"])
+    expect(s.autoScheduleUndo).toBeNull()
+  })
+
+  it("keeps another week's undo and ignores a week that doesn't exist", () => {
+    const undo = { scheduleId: "B", assignments: [] }
+    useScheduleStore.setState({ autoScheduleUndo: undo })
+    useScheduleStore.getState().deleteSchedule()
+    expect(useScheduleStore.getState().autoScheduleUndo).toBe(undo)
+    useScheduleStore.setState({ currentScheduleId: "Z" })
+    useScheduleStore.getState().deleteSchedule()
+    expect(useScheduleStore.getState().schedules).toHaveLength(1)
+  })
+})

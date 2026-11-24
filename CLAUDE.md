@@ -20,7 +20,7 @@ See ROADMAP.md for implementation phases.
 - Keep business logic independent of React and Zustand.
 - Put scheduling algorithms and calculations in `src/domain/`.
 - Use Zustand for application state.
-- Use localStorage for persistence.
+- Use IndexedDB for persistence.
 - Organize UI by feature.
 
 ## Important Business Rules
