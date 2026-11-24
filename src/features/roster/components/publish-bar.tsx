@@ -11,11 +11,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { hasContentChanges, validateForPublish } from "@/domain/draft"
-import { describeConflict } from "@/domain/shift"
-import { DAYS_OF_WEEK } from "@/domain/types"
 import type { Assignment, Schedule, Shift, Staff } from "@/domain/types"
 import { useScheduleStore } from "@/store/schedule-store"
 
@@ -79,32 +76,6 @@ export function PublishBar({
           </Button>
         </div>
       </div>
-
-      {isDraft && validation.conflicts.length > 0 && (
-        <Alert variant="destructive">
-          <AlertTitle>Fix overlapping shifts before publishing</AlertTitle>
-          <AlertDescription>
-            {validation.conflicts
-              .map((c) => describeConflict(c, staff, DAYS_OF_WEEK))
-              .join(" ")}
-          </AlertDescription>
-        </Alert>
-      )}
-      {isDraft && validation.overMax.length > 0 && (
-        <Alert variant="destructive">
-          <AlertTitle>
-            Reduce hours over the maximum before publishing
-          </AlertTitle>
-          <AlertDescription>
-            {validation.overMax
-              .map(
-                (o) =>
-                  `${o.staff.name}: ${o.assigned}h of ${o.staff.maxWeeklyHours}h.`
-              )
-              .join(" ")}
-          </AlertDescription>
-        </Alert>
-      )}
 
       <AlertDialog open={confirmDiscard} onOpenChange={setConfirmDiscard}>
         <AlertDialogContent>

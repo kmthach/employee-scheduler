@@ -25,7 +25,7 @@ import {
 
 import { useAutoSchedule } from "../use-auto-schedule"
 import { AutoScheduleButton, AutoScheduleError } from "./auto-schedule-panel"
-import { OverMaxAlert } from "./over-max-alert"
+import { RosterLegend } from "./roster-legend"
 import { DeleteScheduleButton } from "./delete-schedule-button"
 import { PublishBar } from "./publish-bar"
 import { NewScheduleDialog } from "./new-schedule-dialog"
@@ -197,15 +197,15 @@ export function RosterWorkspace() {
           }
         />
         <div className="flex min-h-0 flex-1 flex-col gap-4">
-          <WeeklySummary
-            week={transactions.length > 0 ? coverage.week : null}
-          />
+          <div className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-2">
+            <WeeklySummary
+              week={transactions.length > 0 ? coverage.week : null}
+            />
+            <div className="ml-auto">
+              <RosterLegend />
+            </div>
+          </div>
           <AutoScheduleError auto={auto} />
-          <OverMaxAlert
-            staff={staff}
-            shifts={shifts}
-            assignments={assignments}
-          />
           <RosterGrid
             scheduleId={scheduleId}
             staff={staff}

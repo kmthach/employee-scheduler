@@ -60,7 +60,7 @@ export function AssignmentCell({
   )
 
   // Shifts this employee already has today are not offered again.
-  // Shifts pending removal are not offered either: they come back through "Revert" only.
+  // Shifts pending removal are not offered either: they come back through "Undo" only.
   const assignedShiftIds = new Set(
     [...cellAssignments, ...pendingRemovals].map((a) => a.shiftId)
   )
@@ -132,7 +132,7 @@ export function AssignmentCell({
       shifts.find((s) => s.id === a.shiftId) ??
       publishedShifts?.find((s) => s.id === a.shiftId)
     if (!shift) return null
-    // Reverting is allowed even if it creates an overlap (highlighted; publishing stays blocked).
+    // Undoing a removal is allowed even if it creates an overlap (highlighted; publishing stays blocked).
     // It is only impossible when the shift template itself was deleted (Discard changes restores it).
     const reason = shifts.some((s) => s.id === a.shiftId)
       ? null
@@ -154,8 +154,8 @@ export function AssignmentCell({
         <button
           type="button"
           disabled={reason !== null}
-          title={reason ?? "Revert removal"}
-          aria-label={`Revert removal of ${label(shift)} on ${dayName}`}
+          title={reason ?? "Undo removal"}
+          aria-label={`Undo removal of ${label(shift)} on ${dayName}`}
           className="absolute inset-0 inline-flex items-center justify-center gap-1 rounded-lg bg-secondary text-xs font-medium text-secondary-foreground opacity-0 transition-opacity outline-none group-hover/removed:opacity-100 hover:bg-secondary/80 focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:text-muted-foreground disabled:hover:bg-secondary [&_svg]:size-3"
           onClick={() =>
             restoreAssignment({
@@ -165,7 +165,7 @@ export function AssignmentCell({
             })
           }
         >
-          <Undo2 /> Revert
+          <Undo2 /> Undo
         </button>
       </div>
     )
