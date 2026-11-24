@@ -45,7 +45,7 @@ Auto-schedule treats the week as a small **constraint optimization problem** and
 2. **Decisions.** For every employee, day and shift there is a yes/no choice: "works this shift on this day".
 3. **Rules that are never broken.** No employee gets overlapping shifts, and no employee goes over their maximum weekly hours (there is no overtime). The same rules block manual edits.
 4. **Goals, in strict priority order.** (1) Minimize understaffed hours, (2) don't schedule hours nobody needs, (3) spread hours fairly, measured as a share of each person's own maximum so a 20 h and a 40 h employee are compared proportionally. Each goal is solved in turn and locked in before the next, so there are no weights to tune.
-5. **Result.** An editable **draft**, never published automatically. Coverage gaps that the available hours can't fill are shown as understaffed hours instead of being covered with overtime. The result is deterministic (fixed seed, one worker), and Undo restores the previous roster.
+5. **Result.** An editable **draft**, never published automatically. Coverage gaps that the available hours can't fill are shown as understaffed hours instead of being covered with overtime. The result is deterministic (fixed seed, one worker). Re-running Auto-schedule replaces the week's assignments, including manual ones.
 
 CP-SAT was chosen over a greedy heuristic because overlapping shifts, per-person caps and the coverage/fairness trade-off are awkward for greedy rules and give no guarantee of quality; at this problem size CP-SAT solves in well under a second.
 
@@ -71,7 +71,7 @@ CP-SAT was chosen over a greedy heuristic because overlapping shifts, per-person
 
 **Ideas I adopted, and why**
 
-- **Demand, then draft, then manager edits.** Both tools separate "how many people does this hour need" from "who works when", and treat the generated roster as a draft the manager owns. I did the same: transactions become headcount through one visible number (transactions per employee per hour), and Auto-schedule produces an editable draft with Undo.
+- **Demand, then draft, then manager edits.** Both tools separate "how many people does this hour need" from "who works when", and treat the generated roster as a draft the manager owns. I did the same: transactions become headcount through one visible number (transactions per employee per hour), and Auto-schedule produces an editable draft.
 - **Show hours and gaps on the roster itself.** The tools surface overtime and coverage gaps where the manager is already looking. Here, each employee's `hours / maximum` sits under their name (amber when over), overlapping shifts turn the cell red, and each day header shows how many hours are understaffed, with an hour-by-hour coverage view one click away.
 - **Overtime shown while scheduling.** Both tools flag overtime on the schedule itself rather than in a report afterwards, so here the hour limit is enforced while the manager edits and inside the optimizer.
 
